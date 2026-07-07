@@ -1303,6 +1303,258 @@ Cage fault (early warning, very low amplitude):
   </div>
 </details>
 
+<!-- G-Q: Frame quality scoring -->
+<details>
+  <summary>
+    G-Q &mdash; Frame quality scoring &mdash; why not all recorded frames are usable
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>Before building a statistical baseline, every frame must pass a quality check.
+    A baseline built from bad frames (clipped by a loud noise, silent because the mic
+    disconnected, corrupted by a truck driving past) will have inflated sigma values
+    that make the drift detector less sensitive. Garbage in, garbage baseline, missed faults.</p>
+
+    <h3>The four quality criteria</h3>
+    <div class="mono-block"><span class="hi">1. Clipping check</span>   (time domain)
+   Fraction of raw samples at +/- 0.9 &gt; 1%
+   Why 0.9: ADC clips at 1.0, but 0.9 gives a 10% safety margin.
+   A clipped sine looks like a square wave in the frequency domain &mdash;
+   strong odd harmonics at 3x, 5x, 7x the fundamental. These are NOT machine faults.
+   Action: flag 'clipping', score -= 0.5
+
+<span class="hi">2. Silence check</span>   (frequency domain)
+   Max bin &lt; noise floor + 20 dB (default: max &lt; -60 dBFS)
+   Why: mic disconnected, machine off, or gain set to zero.
+   Including a silent frame pulls mu down and inflates sigma everywhere.
+   Action: flag 'silence', score = 0 (immediate disqualifier)
+
+<span class="hi">3. Low SNR check</span>   (frequency domain)
+   (peak bin) - (20th-percentile bin) &lt; 15 dB
+   The 20th percentile approximates the noise floor (less than 20% of bins hold real signal).
+   If the machine tone is &lt;15 dB above noise, the spectrum is unreliable.
+   Action: flag 'low_snr', score -= 0.3
+
+<span class="hi">4. Transient check</span>  (time domain, optional)
+   Frame RMS &gt; session median RMS * 2 (i.e., +6 dB louder than typical)
+   Catches door slams, pressure surges, footsteps near the mic.
+   Requires sessionMedianRms from the caller (not computed internally).
+   Action: flag 'transient', score -= 0.2</div>
+
+    <h3>Score and usability</h3>
+    <div class="mono-block">Start at 1.0. Deduct per flag. Clamp to [0, 1].
+usable = score &ge; 0.6
+
+Example &mdash; frame has low SNR and minor transient:
+  score = 1.0 - 0.3 - 0.2 = 0.5 &rarr; usable = false
+
+Example &mdash; frame has no flags:
+  score = 1.0 &rarr; usable = true</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the blood sample:</strong> A blood test taken immediately after
+      the patient ran up three flights of stairs is technically valid data, but it does not
+      represent their resting state. Including it in the reference range would inflate normal
+      heart-rate values. The quality scorer is the lab technician who notes "patient was stressed,
+      resample in 10 minutes" before accepting the measurement.
+    </div>
+  </div>
+</details>
+
+<!-- G-B: Baseline building -->
+<details>
+  <summary>
+    G-B &mdash; Building a statistical baseline &mdash; what "normal" looks like in numbers
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>After quality filtering, the baseline is a statistical portrait of the machine's healthy
+    spectrum. For each of the 4,097 frequency bins, it stores two numbers: the mean (mu) and
+    the standard deviation (sigma). Together they define the normal range for that frequency.</p>
+
+    <h3>The algorithm</h3>
+    <div class="mono-block">Given N usable frames, each with 4097 frequency bins:
+
+mu[k]    = (1/N) * sum_i bins_i[k]          &larr; average power at bin k across all frames
+sigma[k] = sqrt( (1/N) * sum_i (bins_i[k] - mu[k])^2 )   &larr; natural variation at bin k
+
+Sigma floor: sigma[k] = max(sigma[k], 0.5 dB)
+  Why: with finite N, some bins may show zero measured variation but have non-zero
+  true variation. The floor prevents division-by-zero in detectors and limits false
+  alarms on bins that happened to be perfectly stable in the baseline sample.</div>
+
+    <h3>Worked example with a 50+150 Hz test signal</h3>
+    <div class="mono-block">9 frames, frameSize=8000, SR=8000 Hz, fftSize=8192
+
+Bin 51 (approximately 50 Hz):
+  All frames: bins[51] &asymp; -18.5 dBFS  (50 Hz tone, stable)
+  mu[51]    = -18.5 dBFS
+  sigma[51] = 0.0 dBFS &rarr; floored to 0.5 dBFS
+
+Bin 1000 (noise, &asymp; 976 Hz):
+  Frames vary: -116 to -118 dBFS (thermal noise of the ADC)
+  mu[1000]    = -117.0 dBFS
+  sigma[1000] = 1.0 dBFS  (natural variation of the noise floor)</div>
+
+    <h3>Minimum recommended baseline size</h3>
+    <div class="mono-block">N=10 frames:  sigma error &asymp; 24%   (rough, use with caution)
+N=30 frames:  sigma error &asymp; 13%   (minimum for operational use)
+N=100 frames: sigma error &asymp;  7%   (production baseline)
+N=300 frames: sigma error &asymp;  4%   (reference-grade)
+
+Collect over multiple hours or days to capture load and temperature variation.</div>
+  </div>
+</details>
+
+<!-- G-M: Mahalanobis distance -->
+<details>
+  <summary>
+    G-M &mdash; Mahalanobis distance &mdash; "how unusual is this frame?"
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>Once a baseline exists, every new frame gets a score: how far is it from normal?
+    The Mahalanobis distance answers this in units of standard deviations, accounting
+    for the natural variation at each frequency bin.</p>
+
+    <h3>The formula</h3>
+    <div class="mono-block">For each bin k:
+  z[k] = (current[k] - mu[k]) / sigma[k]   &larr; how many sigmas above/below normal
+
+Full Mahalanobis: D^2 = (x - mu)^T * C^-1 * (x - mu)
+  where C is the full covariance matrix &mdash; 4097 x 4097 = 67M elements (impractical)
+
+Diagonal approximation (used here, bins treated as independent):
+  D^2 = sum_k z[k]^2   &larr; sum of squared z-scores
+
+Primary alert signal: maxAbsZ = max(|z[k]|) across all bins
+  Why not D^2? A bearing sideband is ONE new tone at ONE bin.
+  It barely moves D^2 (adds one z^2 to a sum of 4097 terms).
+  But it produces a large z at exactly that bin. maxAbsZ catches it.</div>
+
+    <h3>Alert thresholds</h3>
+    <div class="mono-block">normal:  maxAbsZ &lt; 3.0   (all bins within 3 sigma of baseline)
+warning: maxAbsZ &ge; 3.0   (one bin is 3 sigma above normal &mdash; investigate)
+alert:   maxAbsZ &ge; 4.0   (one bin is 4 sigma above normal &mdash; act now)
+
+Worked example: bearing sideband appears at bin 86 (BPFO &asymp; 84 Hz)
+  Baseline: mu[86] = -70 dBFS, sigma[86] = 1.0 dBFS
+  New frame: bins[86] = -64 dBFS  (+6 dB above baseline)
+  z[86] = (-64 - -70) / 1.0 = 6.0
+  maxAbsZ = 6.0 &ge; 4.0 &rarr; ALERT
+  Action: check bearing at BPFO frequency</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the factory quality inspector:</strong> The inspector measures 4,097
+      dimensions of each part. A part is "normal" if every dimension is within its tolerance.
+      Mahalanobis asks: "is ANY dimension more than 4 tolerances off?" One rogue dimension
+      fails the whole part, even if the other 4,096 are perfect. That is exactly what we want
+      for bearing fault detection &mdash; a single new frequency is a clear fault signature.
+    </div>
+  </div>
+</details>
+
+<!-- G-C: CUSUM drift detection -->
+<details>
+  <summary>
+    G-C &mdash; CUSUM drift detection &mdash; catching slow trends Mahalanobis misses
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>Mahalanobis is excellent at detecting sudden changes. It fails at slow, consistent drift:
+    a pump that gets 0.3 dB louder at one frequency every week. Each individual frame looks
+    normal. But after 10 weeks it is 3 dB louder at that frequency &mdash; a clear warning sign.
+    CUSUM (Cumulative Sum, Page 1954) accumulates those tiny increments until they cross a
+    threshold.</p>
+
+    <h3>The algorithm</h3>
+    <div class="mono-block">Parameters:
+  delta    = slack (in z-score units). Half the drift size you want to detect.
+             Default: 0.5 (detects 1-sigma sustained drift)
+  threshold = h. Alert when S[k] &gt; h. Default: 5.0
+
+Per bin k, per new frame:
+  z[k]  = (current[k] - mu[k]) / sigma[k]        &larr; z-score for this frame
+  S[k]  = max(0,  S_prev[k] + z[k] - delta)      &larr; accumulate excess, clamp at zero
+  alert = S[k] &gt; threshold                        &larr; flag this bin</div>
+
+    <h3>Worked example: +1 dB per frame drift at bin 51</h3>
+    <div class="mono-block">Baseline: mu[51] = -40 dBFS, sigma[51] = 1.0 dBFS
+Settings: delta = 0.5, threshold = 5.0
+
+Frame 1: bins[51] = -39.0  z=1.0  S = max(0, 0 + 1.0 - 0.5) = 0.5
+Frame 2: bins[51] = -38.0  z=2.0  S = max(0, 0.5 + 2.0 - 0.5) = 2.0
+Frame 3: bins[51] = -37.0  z=3.0  S = max(0, 2.0 + 3.0 - 0.5) = 4.5
+Frame 4: bins[51] = -36.0  z=4.0  S = max(0, 4.5 + 4.0 - 0.5) = 8.0  &gt; 5.0  ALERT
+
+Oscillating noise (z = +0.3 / -0.3 alternating, no drift):
+Frame 1: z=+0.3  S = max(0, 0 + 0.3 - 0.5) = max(0, -0.2) = 0    (clamped)
+Frame 2: z=-0.3  S = max(0, 0 - 0.3 - 0.5) = 0    (always clamped)
+Result: S stays at 0 forever &mdash; no alert for healthy variation</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the penny jar:</strong> Every day the machine adds some pennies
+      (positive z) and takes some out (negative z). Healthy machine: roughly equal in and out,
+      jar stays level. Deteriorating machine: every day slightly more in than out. Jar fills
+      slowly. The threshold is the overflow line. The max(0, ...) is the jar bottom &mdash;
+      you cannot have negative pennies, so a quiet period drains back to zero but never goes
+      below.
+    </div>
+  </div>
+</details>
+
+<!-- G-R: Reference-tone calibration -->
+<details>
+  <summary>
+    G-R &mdash; Reference-tone calibration &mdash; making sessions comparable
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>Panaural records in dBFS (relative to ADC full scale). If microphone gain changes
+    between sessions, every bin shifts by the same offset &mdash; not because the pump changed,
+    but because the recording setup did. Calibration anchors each session to a known reference
+    so baselines built on different days remain comparable.</p>
+
+    <h3>The algorithm</h3>
+    <div class="mono-block">Before each measurement session:
+  1. Play a known-frequency tone (e.g. 440 Hz) near the mic for 2 seconds
+  2. Record it. Load into Panaural. Run detectReferenceTone(bins, 440, freqRes, expectedDb)
+
+Inside detectReferenceTone:
+  refBin    = round(440 / freqRes)             &larr; nearest bin to 440 Hz
+  measured  = average(bins[refBin-1..refBin+1])  &larr; 3-bin average (reduces single-bin noise)
+  noiseFloor = median(all bins excluding +/-10 bins around refBin)
+  SNR       = measured - noiseFloor
+  valid     = SNR &gt; 20 dB
+  offsetDb  = expectedDb - measured            &larr; correction to apply to all bins</div>
+
+    <h3>Worked example</h3>
+    <div class="mono-block">Session A (baseline day): 440 Hz tone measures -20.0 dBFS. expectedDb = -20.
+  offsetDb = -20 - (-20.0) = 0.0 dB (no correction needed)
+
+Session B (3 weeks later, mic moved 2 cm closer): 440 Hz measures -17.5 dBFS.
+  offsetDb = -20 - (-17.5) = -2.5 dB
+  Apply: all bins in Session B subtract 2.5 dB before comparing to Session A baseline.
+
+SNR check: if the tone is not at least 20 dB above background noise, the
+  measurement is too uncertain to trust. result.valid = false.
+  Action: reduce background noise, move tone source closer, retry.</div>
+
+    <div class="callout amber">
+      <strong>Limitation:</strong> This corrects overall gain only. It does not correct
+      frequency-dependent microphone response variation (e.g., if the mic is 3 dB less
+      sensitive at 100 Hz than at 440 Hz). For that you need a swept-sine calibration
+      or a calibrated reference microphone. Gain calibration is better than no calibration;
+      it is not a substitute for a calibrated sensor.
+    </div>
+  </div>
+</details>
+
 <!-- ================================================================== -->
 <!--  LOAD AUDIO                                                         -->
 <!-- ================================================================== -->
@@ -1377,6 +1629,65 @@ Cage fault (early warning, very low amplitude):
     Hover for frequency, time, and level. Yellow dashed lines are auto-detected peaks.
     Horizontal bright lines are steady tones. Drifting lines indicate developing faults.
   </p>
+</div>
+
+<!-- ================================================================== -->
+<!--  BASELINE + DRIFT DETECTION                                        -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Baseline + Drift Detection</div>
+
+<div class="card" id="driftCard">
+  <h2>Build Baseline &amp; Detect Drift</h2>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+    Load a WAV file above. Click <strong>Record Baseline</strong> to use those frames as the
+    healthy reference. Load a second WAV (a later recording of the same machine) and click
+    <strong>Run Detection</strong> to compare it to the baseline.
+  </p>
+
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px">
+    <button id="btnBaseline" style="background:var(--green);color:#000;border:none;border-radius:4px;padding:8px 18px;font-weight:700;font-size:13px;cursor:pointer">
+      Record Baseline from Current WAV
+    </button>
+    <button id="btnDetect" disabled style="background:var(--s3);color:var(--muted);border:1px solid var(--bd);border-radius:4px;padding:8px 18px;font-weight:700;font-size:13px;cursor:not-allowed">
+      Run Detection on Current WAV
+    </button>
+  </div>
+
+  <div id="baselineStatus" style="font-size:12px;color:var(--muted);font-family:monospace;margin-bottom:10px">
+    No baseline recorded.
+  </div>
+
+  <div id="driftResults" style="display:none">
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">Mahalanobis Alert</div>
+        <div id="mAlert" style="font-size:1.4rem;font-weight:700;font-family:monospace">--</div>
+        <div id="mDetail" style="font-size:11px;color:var(--muted);margin-top:4px;font-family:monospace">--</div>
+        <p style="margin-top:8px;font-size:12px">
+          Based on the largest per-bin z-score (maxAbsZ). Alerts when any single frequency
+          deviates more than 3 sigma (warning) or 4 sigma (alert) from its baseline.
+        </p>
+      </div>
+      <div class="card" style="padding:12px 14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:6px">CUSUM Alert Bins</div>
+        <div id="cAlert" style="font-size:1.4rem;font-weight:700;font-family:monospace">--</div>
+        <div id="cDetail" style="font-size:11px;color:var(--muted);margin-top:4px;font-family:monospace">--</div>
+        <p style="margin-top:8px;font-size:12px">
+          Bins where the CUSUM accumulator exceeded its threshold across all frames.
+          CUSUM detects slow monotonic drift; Mahalanobis detects sudden changes.
+        </p>
+      </div>
+    </div>
+
+    <div id="topBinsSection" style="display:none;margin-top:8px">
+      <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin-bottom:8px">Top alerting bins by z-score</div>
+      <div id="topBinsRow" class="peaks-row"></div>
+      <p style="font-size:11px;color:var(--muted);margin-top:8px">
+        Cross-reference these frequencies with bearing fault formulas (Guide G11) to
+        identify the fault source.
+      </p>
+    </div>
+  </div>
 </div>
 
 <!-- ================================================================== -->
@@ -1774,6 +2085,172 @@ function renderSelfTests() {
 window.addEventListener('DOMContentLoaded', () => {
   renderSelfTests();
   setStatus('Ready -- select a PCM WAV file above.', 'info');
+});
+
+// ── Weekend 2: Baseline + Drift detection ────────────────────────────────────
+
+let W2_baseline = null;
+let W2_rawFrames = null;
+
+// Wrap computeSTFT to capture raw per-frame samples alongside the frequency output.
+// The original computeSTFT slices the signal identically, so we replicate the loop.
+const _origComputeSTFT = computeSTFT;
+computeSTFT = function(smp, fs, hs, wt) {
+  W2_rawFrames = [];
+  for (let off = 0; off + fs <= smp.length; off += hs) {
+    W2_rawFrames.push(smp.slice(off, off + fs));
+  }
+  return _origComputeSTFT(smp, fs, hs, wt);
+};
+
+// After each file load, reset detection state.
+document.getElementById('fileInput').addEventListener('change', function() {
+  document.getElementById('driftResults').style.display = 'none';
+  const btn = document.getElementById('btnDetect');
+  btn.disabled = true; btn.style.background = 'var(--s3)';
+  btn.style.color = 'var(--muted)'; btn.style.cursor = 'not-allowed';
+  if (W2_baseline) {
+    document.getElementById('baselineStatus').textContent =
+      'Baseline active: ' + W2_baseline.numFrames + ' frames, built at ' + W2_baseline.builtAt +
+      '. Load detection file and click Run Detection.';
+    btn.disabled = false; btn.style.background = 'var(--blue)';
+    btn.style.color = '#000'; btn.style.cursor = 'pointer';
+  } else {
+    document.getElementById('baselineStatus').textContent = 'No baseline recorded.';
+  }
+}, false);
+
+// Quality scoring (mirrors packages/core/src/baseline/quality.ts)
+function w2_scoreQuality(rawSamples, bins) {
+  const flags = [];
+  let score = 1.0;
+  let clipped = 0;
+  for (let i = 0; i < rawSamples.length; i++) if (Math.abs(rawSamples[i]) >= 0.9) clipped++;
+  const clippingFraction = clipped / rawSamples.length;
+  if (clippingFraction > 0.01) { flags.push('clipping'); score -= 0.5; }
+  const maxBin = Math.max.apply(null, bins);
+  if (maxBin < -60) return { score: 0, flags: ['silence'], usable: false };
+  const sorted = Float64Array.from(bins).sort();
+  const p20 = sorted[Math.floor(sorted.length * 0.2)];
+  const snr = maxBin - p20;
+  if (snr < 15) { flags.push('low_snr'); score -= 0.3; }
+  score = Math.max(0, Math.min(1, score));
+  return { score, flags, usable: score >= 0.6 };
+}
+
+// Baseline builder (mirrors packages/core/src/baseline/build.ts)
+function w2_buildBaseline(rawFrames, freqFrames) {
+  const usable = [];
+  for (let i = 0; i < freqFrames.length; i++) {
+    if (w2_scoreQuality(rawFrames[i], freqFrames[i]).usable) usable.push(freqFrames[i]);
+  }
+  if (usable.length < 3) return null;
+  const numBins = usable[0].length, n = usable.length;
+  const mu = new Float64Array(numBins);
+  for (const f of usable) for (let k = 0; k < numBins; k++) mu[k] += f[k];
+  for (let k = 0; k < numBins; k++) mu[k] /= n;
+  const sigma = new Float64Array(numBins);
+  for (const f of usable) for (let k = 0; k < numBins; k++) sigma[k] += (f[k] - mu[k]) ** 2;
+  for (let k = 0; k < numBins; k++) sigma[k] = Math.max(Math.sqrt(sigma[k] / n), 0.5);
+  return { mu, sigma, numFrames: n, builtAt: new Date().toISOString() };
+}
+
+// Mahalanobis score (mirrors packages/core/src/detector/mahalanobis.ts)
+function w2_scoreFrame(bins, baseline) {
+  const numBins = bins.length;
+  const zScores = new Float64Array(numBins);
+  let distance = 0, maxAbsZ = 0, numBinsAlerting = 0;
+  for (let k = 0; k < numBins; k++) {
+    const z = (bins[k] - baseline.mu[k]) / baseline.sigma[k];
+    zScores[k] = z;
+    distance += z * z;
+    const absZ = Math.abs(z);
+    if (absZ > maxAbsZ) maxAbsZ = absZ;
+    if (absZ > 2.0) numBinsAlerting++;
+  }
+  const alertLevel = maxAbsZ >= 4 ? 'alert' : maxAbsZ >= 3 ? 'warning' : 'normal';
+  return { distance, zScores, maxAbsZ, alertLevel, numBinsAlerting };
+}
+
+// CUSUM (mirrors packages/core/src/detector/cusum.ts)
+function w2_initCUSUM(numBins) {
+  return { S: new Float64Array(numBins), alertBins: new Uint8Array(numBins), delta: 0.5, threshold: 5.0 };
+}
+function w2_updateCUSUM(state, bins, baseline) {
+  const numBins = bins.length;
+  const newS = new Float64Array(numBins);
+  const newAlerts = new Uint8Array(numBins);
+  for (let k = 0; k < numBins; k++) {
+    const z = (bins[k] - baseline.mu[k]) / baseline.sigma[k];
+    newS[k] = Math.max(0, state.S[k] + z - state.delta);
+    newAlerts[k] = newS[k] > state.threshold ? 1 : 0;
+  }
+  return { S: newS, alertBins: newAlerts, delta: state.delta, threshold: state.threshold };
+}
+
+document.getElementById('btnBaseline').addEventListener('click', function() {
+  if (!CR || !W2_rawFrames) { alert('Load a WAV file first.'); return; }
+  W2_baseline = w2_buildBaseline(W2_rawFrames, CR.frames);
+  if (!W2_baseline) {
+    document.getElementById('baselineStatus').textContent =
+      'Baseline FAILED: fewer than 3 usable frames after quality filtering.';
+    return;
+  }
+  document.getElementById('baselineStatus').textContent =
+    'Baseline recorded: ' + W2_baseline.numFrames + ' usable frames | ' + W2_baseline.builtAt;
+  const btn = document.getElementById('btnDetect');
+  btn.disabled = false; btn.style.background = 'var(--blue)';
+  btn.style.color = '#000'; btn.style.cursor = 'pointer';
+});
+
+document.getElementById('btnDetect').addEventListener('click', function() {
+  if (!CR || !W2_baseline) return;
+  const frames = CR.frames, numBins = frames[0].length;
+  // Mahalanobis: worst case across all frames
+  let worst = null;
+  for (const f of frames) {
+    const r = w2_scoreFrame(f, W2_baseline);
+    if (!worst || r.maxAbsZ > worst.maxAbsZ) worst = r;
+  }
+  // CUSUM: accumulate across all frames
+  let cs = w2_initCUSUM(numBins);
+  for (const f of frames) cs = w2_updateCUSUM(cs, f, W2_baseline);
+  const totalCusumAlerts = Array.from(cs.alertBins).reduce((s, v) => s + v, 0);
+
+  // Mahalanobis display
+  const clr = { normal: 'var(--green)', warning: 'var(--amber)', alert: 'var(--red)' };
+  document.getElementById('mAlert').textContent = worst.alertLevel.toUpperCase();
+  document.getElementById('mAlert').style.color = clr[worst.alertLevel];
+  document.getElementById('mDetail').textContent =
+    'maxAbsZ = ' + worst.maxAbsZ.toFixed(2) + '  |  ' + worst.numBinsAlerting + ' bins > 2-sigma';
+
+  // CUSUM display
+  document.getElementById('cAlert').textContent = totalCusumAlerts + ' bins';
+  document.getElementById('cAlert').style.color = totalCusumAlerts > 0 ? 'var(--amber)' : 'var(--green)';
+  document.getElementById('cDetail').textContent =
+    'delta=0.5 | threshold=5.0 | ' + frames.length + ' frames processed';
+
+  // Top 5 alerting bins by z-score
+  const sr = CR.sr, fN = CR.fN;
+  const zMag = Array.from(worst.zScores).map((z, k) => ({ k, z: Math.abs(z), freq: k * sr / fN }));
+  zMag.sort((a, b) => b.z - a.z);
+  const top5 = zMag.slice(0, 5).filter(x => x.z > 2.0);
+  const row = document.getElementById('topBinsRow');
+  row.innerHTML = '';
+  if (top5.length > 0) {
+    for (const { freq, z } of top5) {
+      const c = document.createElement('span'); c.className = 'peak-chip';
+      const fl = freq < 10 ? freq.toFixed(2) : freq < 100 ? freq.toFixed(1) : Math.round(freq);
+      c.textContent = fl + ' Hz  z=' + z.toFixed(1);
+      c.style.color = z >= 4 ? 'var(--red)' : z >= 3 ? 'var(--amber)' : 'var(--blue)';
+      row.appendChild(c);
+    }
+    document.getElementById('topBinsSection').style.display = '';
+  } else {
+    document.getElementById('topBinsSection').style.display = 'none';
+  }
+
+  document.getElementById('driftResults').style.display = '';
 });
 </script>
 </body>
