@@ -11,3 +11,9 @@ export * from './transform/psd.js';
 export * from './audit/hash.js';
 export * from './audit/logger.js';
 export * from './validation/selftest.js';
+// Weekend 2
+export * from './baseline/quality.js';
+export * from './baseline/build.js';
+export * from './detector/mahalanobis.js';
+export * from './detector/cusum.js';
+export * from './calibration/reference.js';
