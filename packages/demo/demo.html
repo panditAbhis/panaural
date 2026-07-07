@@ -678,6 +678,632 @@ Example &mdash; HVAC pump (4 balls, 25 Hz shaft, D/d &asymp; 3, &alpha; &asymp; 
 </details>
 
 <!-- ================================================================== -->
+<!--  MODULE GUIDE                                                       -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Module Guide — In-Depth Reference</div>
+<p style="font-size:12px;color:var(--muted);margin-bottom:14px">
+  This section is the companion textbook for Panaural. Each entry goes deeper than the quick-start
+  accordions above &mdash; worked numbers, derivations, and analogies that build lasting understanding.
+  Read front-to-back or jump to any topic.
+</p>
+
+<!-- G1: Physics of sound -->
+<details>
+  <summary>
+    G1 &mdash; Physics of sound &mdash; pressure, frequency, amplitude and the human ear
+    <span class="badge b-edu" style="margin-left:6px">Physics</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>What a sound wave actually is</h3>
+    <p>Air at rest has a uniform pressure of roughly 101,325 Pa (one atmosphere). Sound is a
+    longitudinal pressure disturbance &mdash; alternating regions of compression (higher pressure)
+    and rarefaction (lower pressure) that propagate outward from the source at 343 m/s at 20 &deg;C.</p>
+    <p>No air molecule travels with the wave. Each molecule oscillates back and forth around its
+    rest position by a tiny amount, pushing its neighbour, which pushes its neighbour. The
+    <em>energy</em> travels; the <em>matter</em> stays local. Exactly like a crowd wave in a stadium.</p>
+
+    <h3>The three properties of a pure tone</h3>
+    <div class="mono-block">Frequency  f  [Hz]   — how many pressure cycles per second
+                             A pump at 1500 RPM rotates 25 times/second: f = 25 Hz
+Amplitude  A  [Pa]   — peak pressure deviation from atmospheric
+                             Faint bearing sideband: ~0.001 Pa above atmospheric
+Phase      phi [rad] — where in the cycle the tone starts at t=0
+                             Two tones at same f but different phi partially cancel</div>
+
+    <h3>Human hearing vs machine monitoring</h3>
+    <p>Human ear: 20 Hz &ndash; 20 kHz. Most sensitive around 1&ndash;4 kHz (speech band).
+    Below 200 Hz we perceive as "rumble." Pump monitoring lives mostly in 10&ndash;2,000 Hz
+    &mdash; well within hearing, but human ears cannot reliably detect a 0.5 dB amplitude change
+    or a 2 Hz frequency drift. That is why we need the spectrogram.</p>
+
+    <h3>Why pump faults produce specific frequencies</h3>
+    <p>Any rotating part that contacts another surface at a fixed rate creates a periodic impact.
+    Periodic impacts are tonal. The frequency equals the contact rate. This is why:</p>
+    <ul>
+      <li>An imbalanced shaft at 25 Hz produces a strong 25 Hz tone (one heavy side hits air resistance once per revolution)</li>
+      <li>A 4-blade impeller at 25 Hz produces 100 Hz blade-pass (four blades pass the volute tongue per revolution)</li>
+      <li>A bearing with inner race defect produces a tone at BPFI (the defect contacts rolling elements at that rate)</li>
+    </ul>
+    <p>Every machine fault has a <em>kinematic frequency</em> derived from geometry and rotation speed.
+    Acoustic condition monitoring is pattern-matching measured frequencies to kinematic predictions.</p>
+
+    <div class="callout">
+      <strong>Key insight:</strong> A healthy machine produces a stable set of tones at predictable
+      frequencies. A developing fault adds new tones or shifts existing ones. The spectrogram's job
+      is to make those changes visible before they become catastrophic.
+    </div>
+  </div>
+</details>
+
+<!-- G2: Fourier deep dive -->
+<details>
+  <summary>
+    G2 &mdash; Fourier analysis &mdash; from the theorem to the transform, step by step
+    <span class="badge b-edu" style="margin-left:6px">Mathematics</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>The theorem, stated precisely</h3>
+    <p>Any square-integrable function f(t) defined on a finite interval [0, T] can be expressed
+    as an infinite sum of sinusoids whose frequencies are integer multiples of 1/T:</p>
+    <div class="mono-block">f(t) = a0/2 + sum_n [ a_n * cos(2*pi*n*t/T) + b_n * sin(2*pi*n*t/T) ]
+
+Where:  a_n = (2/T) * integral_0^T f(t) * cos(2*pi*n*t/T) dt
+        b_n = (2/T) * integral_0^T f(t) * sin(2*pi*n*t/T) dt</div>
+
+    <p>The integrals <em>measure</em> how much of each sinusoid is present in f(t). This is the
+    key intuition: the Fourier transform does not add sinusoids to the signal &mdash; it
+    <em>discovers</em> the sinusoids that were already there.</p>
+
+    <h3>The complex exponential form (what computers compute)</h3>
+    <p>Using Euler's formula (e^(i*theta) = cos(theta) + i*sin(theta)), the transform collapses
+    to a single integral over complex exponentials. The DFT is the discrete version of this:</p>
+    <div class="mono-block">X[k] = sum_{n=0}^{N-1} x[n] * e^(-i * 2*pi * k * n / N)
+
+k = frequency bin index (0 to N-1)
+n = time sample index
+X[k] = complex number: magnitude = amplitude, angle = phase</div>
+
+    <h3>Why we discard the second half of the output</h3>
+    <p>For a real-valued signal x[n] (all time-domain samples are real numbers, as they are from
+    any microphone), the DFT output is Hermitian symmetric: X[N-k] = conjugate(X[k]).
+    Bins N/2+1 through N-1 contain no new information. We keep only bins 0 through N/2,
+    giving N/2 + 1 unique frequency components.</p>
+
+    <h3>Worked example with our test file</h3>
+    <div class="mono-block">Signal: 50 Hz + 150 Hz, sample rate 8000 Hz, N=8000 samples, fftSize=8192
+
+Bin for 50 Hz:   round(50  * 8192 / 8000) = round(51.20) = 51
+Bin for 150 Hz:  round(150 * 8192 / 8000) = round(153.60) = 154
+Actual frequency of bin 51:  51 * 8000 / 8192 = 49.805 Hz   (error: 0.195 Hz)
+Actual frequency of bin 154: 154 * 8000 / 8192 = 150.390 Hz (error: 0.390 Hz)
+
+scipy fft verification: 50.000 Hz (0.000 error), 150.000 Hz (0.000 error)
+Note: scipy reports 0.000 error because it interpolates to sub-bin resolution.
+      The bin itself is at 49.8 Hz. The error is 0.2 Hz, within 1 Hz ISO tolerance.</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the radio tuner:</strong> An FM radio tuner sweeps through frequencies
+      looking for energy at each frequency. At 98.5 MHz it finds your favourite station.
+      The DFT does the same thing digitally: it tests every integer-multiple-of-(SR/N) frequency
+      and measures how much energy is there. The difference is that DFT tests all frequencies
+      simultaneously in O(N log N) operations.
+    </div>
+  </div>
+</details>
+
+<!-- G3: FFT in code -->
+<details>
+  <summary>
+    G3 &mdash; FFT implementation &mdash; reading the actual code in this page
+    <span class="badge b-edu" style="margin-left:6px">Implementation</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Step 1 &mdash; Bit-reversal permutation</h3>
+    <p>Cooley-Tukey recursively splits the input into even-indexed and odd-indexed halves.
+    After log2(N) splits the elements end up in "bit-reversed" order. Rather than actually
+    recursing, we pre-shuffle the array into that order so the algorithm runs in-place
+    (no extra memory).</p>
+    <div class="mono-block">Example for N=8, indices 0..7:
+  Decimal: 0  1  2  3  4  5  6  7
+  Binary:  000 001 010 011 100 101 110 111
+  Reversed:000 100 010 110 001 101 011 111
+  Decimal: 0  4  2  6  1  5  3  7   &larr; new order after bit-reversal</div>
+
+    <h3>Step 2 &mdash; Butterfly stages</h3>
+    <p>After bit-reversal, the algorithm does log2(N) stages. At each stage, length-2 sub-DFTs
+    are combined into length-4 sub-DFTs, then length-8, and so on until the full DFT is assembled.
+    Each "butterfly" operation updates two complex numbers:</p>
+    <div class="mono-block">twiddle  W = e^(-2*pi*i*k/len) = cos(-2*pi*k/len) + i*sin(-2*pi*k/len)
+
+u = re[i+k]   + i*im[i+k]          (top input)
+v = re[i+k+half]*W.re - im[i+k+half]*W.im    (bottom input * twiddle)
+    + i*(re[i+k+half]*W.im + im[i+k+half]*W.re)
+
+new top    = u + v
+new bottom = u - v</div>
+
+    <h3>Why fftSize = nextPow2(frameSize)</h3>
+    <p>Cooley-Tukey requires N to be a power of 2. Our frameSize is 8000 (not a power of 2).
+    We zero-pad to 8192 = 2^13. Zero-padding does NOT improve resolution &mdash; it just
+    interpolates between the bins you already have. Resolution is fixed by frameSize, not fftSize.</p>
+    <div class="mono-block">frameSize = 8000 samples  &rarr;  fftSize = nextPow2(8000) = 8192
+Resolution = SR / frameSize = 8000 / 8000 = 1.0 Hz/bin   (set by frameSize)
+Bin spacing = SR / fftSize  = 8000 / 8192 = 0.977 Hz/bin (slightly different due to zero-pad)
+              &uarr; This is why bin 51 corresponds to 49.8 Hz, not exactly 50 Hz</div>
+
+    <h3>Normalisation</h3>
+    <p>Raw FFT output magnitude depends on N. We divide by N so that a sine wave of amplitude 1.0
+    produces magnitude 0.5 in the output (energy splits equally between positive and negative
+    frequency bins). We then multiply by 2 for bins 1 through N/2-1 to recover the single-sided
+    amplitude. The code uses <code>mag / fN</code> which is equivalent and matches scipy's default.</p>
+  </div>
+</details>
+
+<!-- G4: Window functions deep -->
+<details>
+  <summary>
+    G4 &mdash; Window functions &mdash; the mathematics of spectral leakage and its cure
+    <span class="badge b-edu" style="margin-left:6px">Signal Processing</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Where leakage comes from &mdash; the convolution theorem</h3>
+    <p>Multiplying a signal by a rectangular window in the time domain is equivalent to
+    convolving its DFT with the DFT of the rectangle (a sinc function) in the frequency domain.
+    The sinc has significant sidelobes &mdash; energy at the sidebands gets "smeared" across
+    adjacent bins. A well-designed window has smaller sidelobes at the cost of a wider main lobe.</p>
+
+    <h3>Quantified trade-offs</h3>
+    <div class="mono-block">Window        Main lobe width   Peak sidelobe   Coherent gain
+Rectangular   1 bin             -13 dB          1.000
+Hann          2 bins            -31.5 dB        0.500
+Hamming       2 bins            -42.7 dB        0.540
+Blackman      3 bins            -58.1 dB        0.420
+Flat-top      5 bins            -93.0 dB        0.215  (best amplitude accuracy)</div>
+
+    <p><strong>Main lobe width</strong>: wider means two close-together tones cannot be resolved.
+    <strong>Peak sidelobe</strong>: if a strong tone at 100 Hz has sidelobes at -31.5 dB, any tone
+    within those bins at less than 31.5 dB relative to the main tone will be masked.
+    <strong>Coherent gain</strong>: amplitude scale factor &mdash; must be compensated when
+    measuring absolute amplitudes (divide measured magnitude by this value).</p>
+
+    <h3>Which window for pump monitoring and why</h3>
+    <p>Pump signals are tonal (strong, steady, narrow peaks). Main concern: nearby sideband tones
+    being masked by the dominant shaft/blade-pass tone. Hann gives -31.5 dB sidelobe suppression
+    &mdash; meaning a bearing sideband that is 30 dB below the main tone is still visible.
+    Bearing sidebands are often 20&ndash;40 dB below the main tone. Hann just passes; Blackman
+    is safer if you expect 40+ dB dynamic range. Default: Hann.</p>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the spotlight:</strong> Without windowing, the FFT sees your signal
+      through a window that is fully bright in the middle and then switches off abruptly at the
+      edges. That sharp switch-off is an "edge effect" that rings across all frequencies.
+      A Hann window is like a spotlight that fades smoothly to black at the edges &mdash;
+      no hard cut, no ringing.
+    </div>
+  </div>
+</details>
+
+<!-- G5: STFT and time-frequency uncertainty -->
+<details>
+  <summary>
+    G5 &mdash; STFT and the time-frequency uncertainty principle &mdash; the fundamental trade-off
+    <span class="badge b-edu" style="margin-left:6px">Theory</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>The uncertainty principle for signals</h3>
+    <p>In quantum mechanics, Heisenberg's uncertainty principle says position and momentum cannot
+    both be known precisely. There is an exact analogue in signal processing: time localisation
+    and frequency resolution cannot both be made arbitrarily small. Their product is bounded:</p>
+    <div class="mono-block">Delta_t * Delta_f >= 1 / (4*pi)   (Gabor's limit, 1946)
+
+This is not a technology limitation. It is a mathematical fact about Fourier analysis.
+For our default settings:
+  Delta_t = frameSize / SR  = 8000 / 8000 = 1.0 second
+  Delta_f = SR / frameSize  = 8000 / 8000 = 1.0 Hz
+  Product = 1.0 s * 1.0 Hz = 1.0   (well above Gabor's limit of 0.080)</div>
+
+    <h3>Choosing the right frame size for your application</h3>
+    <div class="mono-block">Application                    Need                      Recommended frameSize
+────────────────────────────────────────────────────────────────────────────────
+Pump bearing sideband (1 Hz)   High freq resolution       8000 (1.0 Hz/bin)
+Variable-speed machine         High time resolution        512 (15.6 Hz/bin) + order tracking
+Cavitation detection           Broadband, time matters    1024 (7.8 Hz/bin)
+Slow drift monitoring          Freq precision dominates   16000+ (0.5 Hz/bin)</div>
+
+    <h3>Overlap and its effect</h3>
+    <p>Hop size controls how far the window advances per frame. With 75% overlap (hop = frame/4):
+    each time sample is covered by 4 frames. This makes the spectrogram smoother visually but
+    does NOT improve frequency resolution. It does improve time resolution of <em>detected events</em>
+    (you see a transient event in more frames, so you can localise it better in time).</p>
+
+    <div class="callout amber">
+      <strong>Common mistake:</strong> People add overlap to "improve resolution." It does not.
+      Frequency resolution is fixed by frameSize. Overlap only smooths the display and slightly
+      improves event time-localisation. If you need better frequency resolution, increase frameSize.
+      If you need better time localisation, decrease frameSize (accepting coarser frequency resolution).
+    </div>
+  </div>
+</details>
+
+<!-- G6: dB, SPL, dBFS -->
+<details>
+  <summary>
+    G6 &mdash; Decibels in depth &mdash; dBFS vs dB SPL, calibration, and dynamic range
+    <span class="badge b-edu" style="margin-left:6px">Measurement</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Three different "dB" systems in common use</h3>
+    <div class="mono-block">dB SPL:  reference = 20 micropascals (threshold of human hearing)
+         Used by acoustic engineers, noise regulations, calibrated meters
+         0 dB SPL = quietest audible sound; 94 dB SPL = 1 Pa; 140 dB SPL = pain
+
+dBFS:   reference = full scale of the ADC (maximum recordable value)
+         Used in digital audio, software, this tool
+         0 dBFS = ADC maximum; typical signal: -18 to -6 dBFS; noise floor: -96 dBFS (16-bit)
+
+dBV:    reference = 1 Volt RMS
+         Used by electronics engineers measuring mic preamp output
+         A microphone might produce -60 dBV at 94 dB SPL (its sensitivity)</div>
+
+    <h3>Converting between them requires calibration</h3>
+    <div class="mono-block">dB SPL = dBFS + calibration_offset
+
+calibration_offset = SPL_reference - dBFS_at_reference
+                   = 94 dBFS  -  (measured dBFS when signal is exactly 94 dB SPL)
+
+Example: microphone at 1 Pa (94 dB SPL) produces -18 dBFS in recording
+  calibration_offset = 94 - (-18) = 112 dB
+  Now: measured_SPL = measured_dBFS + 112
+
+Panaural currently has no calibration_offset. Our numbers are dBFS only.
+This is why we cannot compare readings across different microphones or sessions
+with different gain settings.</div>
+
+    <h3>Dynamic range of 16-bit audio</h3>
+    <div class="mono-block">16-bit integer range: -32768 to +32767 (2^16 = 65536 levels)
+Theoretical dynamic range: 20 * log10(32767) = 90.3 dB
+Practical dynamic range:   ~85 dB (noise floor of typical ADC is -85 to -96 dBFS)
+
+For pump monitoring:
+  Blade-pass tone:       typically -18 to -6 dBFS
+  Bearing sidebands:     typically -50 to -35 dBFS (30-45 dB below main tone)
+  Noise floor:           -80 dBFS (good mic in quiet environment)
+  Margin above noise:    30+ dB for sidebands  -> detectable with 16-bit audio</div>
+
+    <div class="callout">
+      <strong>Why -10 dBFS ceiling by default:</strong> Signals that clip (hit 0 dBFS) distort badly.
+      A -10 dBFS ceiling means we display the top 70 dB of the dynamic range, stopping 10 dB
+      below clipping. If your signal peaks are too faint to see, lower the ceiling to -30 dBFS.
+      If peaks are clipped (flat tops), raise the ceiling toward 0 dBFS.
+    </div>
+  </div>
+</details>
+
+<!-- G7: Baseline and drift detection -->
+<details>
+  <summary>
+    G7 &mdash; Baseline modelling and drift detection &mdash; the statistics of "normal"
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>The spectrogram shows what is happening <em>now</em>. Drift detection answers: is what is
+    happening now different from what was normal? This requires a statistical model of "normal."</p>
+
+    <h3>Building a baseline</h3>
+    <p>Record N frames (N &ge; 30, ideally &ge; 100) of the machine in confirmed-healthy state.
+    For each frequency bin k, compute the mean and standard deviation across all frames:</p>
+    <div class="mono-block">For bin k, across N healthy frames:
+  mu[k]    = (1/N) * sum_i frame_i[k]         &larr; mean power in dB
+  sigma[k] = sqrt( (1/N) * sum_i (frame_i[k] - mu[k])^2 )   &larr; natural variation
+
+Baseline = { mu[k], sigma[k] } for k = 0..numBins-1
+
+This is a multivariate Gaussian model. Assumption: at each frequency, power
+is normally distributed around the mean during healthy operation.</div>
+
+    <h3>What sigma tells you</h3>
+    <p>sigma[k] captures natural variation: small changes due to load fluctuation, temperature,
+    ambient noise. A large sigma at a bin means that frequency varies a lot even when healthy
+    &mdash; so a drift must be larger before we flag it. A small sigma means that frequency is
+    very stable &mdash; even a small change is suspicious.</p>
+
+    <h3>Mahalanobis distance &mdash; "how unusual is this frame?"</h3>
+    <div class="mono-block">Simple (per-bin z-score):
+  z[k] = (current[k] - mu[k]) / sigma[k]
+
+Mahalanobis distance (accounts for correlations between bins):
+  D^2 = (x - mu)^T * C^-1 * (x - mu)
+
+  Where C is the covariance matrix (sigma[k] on diagonal if bins assumed independent)
+  For N=4097 bins, full C is 4097x4097 = 67M elements  -> use diagonal approximation
+
+  D^2 = sum_k  (current[k] - mu[k])^2 / sigma[k]^2     &larr; simplified Mahalanobis
+
+Under the null hypothesis (machine is healthy), D^2 follows a chi-squared distribution
+with numBins degrees of freedom. At 99.9% confidence: flag if D^2 > chi2_inv(0.999, numBins).</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the medical blood test:</strong> A blood panel measures 20 biomarkers.
+      Each has a reference range (mean + sigma). Mahalanobis distance is like asking "how far
+      is this patient's entire blood panel from the reference, weighted by how much each biomarker
+      normally varies?" A patient with mildly elevated cholesterol AND mildly low iron is more
+      unusual than one with just elevated cholesterol, even if each individual reading is in range.
+      Mahalanobis captures the combination.
+    </div>
+
+    <h3>CUSUM &mdash; detecting slow monotonic drift</h3>
+    <p>Mahalanobis is good at detecting sudden jumps. CUSUM (Cumulative Sum) is better for
+    slow, consistent drift that never triggers a single-frame threshold.</p>
+    <div class="mono-block">CUSUM algorithm (for one bin k):
+  S_0 = 0   (start at zero)
+  S_t = max(0,  S_{t-1} + (current[k] - mu[k] - delta))
+
+  delta = "slack" parameter, half the drift magnitude you want to detect
+  Alert when S_t > h (threshold h, typically 4-5 * sigma[k])
+
+Intuition:
+  If machine is healthy: (current[k] - mu[k]) oscillates around 0.
+    Subtracting delta keeps S_t small. Reset to 0 on negative swing.
+  If machine is drifting up: each frame adds a positive increment.
+    S_t climbs steadily until it crosses h. Alert.
+
+A drift of 2*delta (2x the slack) triggers alert in roughly h/delta frames.</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the penny jar:</strong> Every day you put some pennies in a jar.
+      Some days you add a few, some days you take some out (healthy variation). The jar stays
+      roughly level. Now the machine starts deteriorating: every day you add slightly more than
+      you remove. The jar slowly fills. After enough days, it overflows &mdash; that is the CUSUM
+      alert. It never triggers on a single bad day; it catches the trend.
+    </div>
+  </div>
+</details>
+
+<!-- G8: Calibration protocol -->
+<details>
+  <summary>
+    G8 &mdash; Calibration protocol &mdash; making measurements comparable across sessions
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Why calibration is necessary</h3>
+    <p>You record a pump today with your laptop mic at 50% gain. Next week you record the same
+    pump at 60% gain. The spectrogram looks different &mdash; but the pump did not change, your
+    gain setting did. Without calibration, every session is its own reference frame. You cannot
+    compare absolute dBFS levels across sessions.</p>
+
+    <h3>The reference tone method</h3>
+    <p>Before each measurement session: play a known-frequency reference tone (e.g., 440 Hz at
+    known amplitude) through a speaker near the microphone. Record it for 2 seconds. Measure
+    the dBFS of the 440 Hz bin. The difference between expected and measured is the
+    <em>session offset</em>. Add this offset to all subsequent measurements in that session.</p>
+    <div class="mono-block">Session A: reference tone at 440 Hz measures -20.0 dBFS
+Session B: reference tone at 440 Hz measures -17.5 dBFS   (2.5 dB louder, mic moved closer)
+
+Session B offset: -20.0 - (-17.5) = -2.5 dB
+
+Apply to Session B: all_bins_session_B -= 2.5 dB
+Now sessions A and B are comparable.</div>
+
+    <h3>Limitations of acoustic calibration</h3>
+    <ul>
+      <li><strong>Microphone frequency response:</strong> The mic may be 3 dB flatter at 440 Hz than at 100 Hz. Calibrating at 440 Hz corrects the gain but not the frequency-dependent response shape.</li>
+      <li><strong>Position sensitivity:</strong> Moving the mic 5 cm changes the SPL by 1&ndash;3 dB for near-field sources. Tape a reference mark on the pipe.</li>
+      <li><strong>Background noise:</strong> If background noise changes between sessions, it corrupts broadband measurements even after gain calibration. Run self-test for silence before each session.</li>
+    </ul>
+
+    <div class="callout amber">
+      <strong>Practical minimum:</strong> Always record a reference tone at the start of each
+      monitoring session. Store the session offset in the baseline file. Without this, your
+      "drift detection" may be detecting your laptop battery dying (lower mic gain at low charge)
+      rather than a pump fault.
+    </div>
+  </div>
+</details>
+
+<!-- G9: Quality scoring -->
+<details>
+  <summary>
+    G9 &mdash; Frame quality scoring &mdash; rejecting bad data before it corrupts the baseline
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Why not all frames are equal</h3>
+    <p>A 3-second recording contains 9 frames at our default settings. During those 9 frames:
+    someone may walk past the microphone, a door closes, a truck drives by. Those frames contain
+    external noise, not machine noise. If included in the baseline, they raise mu and sigma at
+    all frequencies, making the detector less sensitive. Garbage in, garbage out.</p>
+
+    <h3>Quality criteria for a frame</h3>
+    <div class="mono-block">1. Clipping check:   < 1% of samples at +/- 0.9  (else ADC saturated)
+2. Silence check:    max bin > noise_floor + 20 dB  (else no signal)
+3. SNR estimate:     (peak bin dB) - (median dB across all bins) > 15 dB
+                     (else signal buried in noise)
+4. Stationarity:     RMS of frame within 6 dB of session median
+                     (else transient event, reject)
+5. Spectral flatness: if spectrum is flat (SFM near 1.0), it is noise not tonal signal</div>
+
+    <h3>SNR estimation without a reference</h3>
+    <div class="mono-block">Noise floor estimation method:
+  Sort all bin magnitudes. Bottom 20th percentile is likely noise floor.
+  Mean of top 5% of bins is likely signal.
+  SNR_estimate = mean(top_5_pct_bins) - mean(bottom_20_pct_bins)   [in dB]
+
+A frame with SNR > 15 dB is usable. Below 10 dB: reject.
+Between 10-15 dB: flag as low quality, include with reduced weight.</div>
+
+    <h3>Quality score output</h3>
+    <p>Each frame gets a quality score from 0.0 to 1.0. The baseline is built as a
+    <em>weighted</em> average: high-quality frames contribute more. This makes the baseline
+    robust to the occasional noise intrusion without requiring manual review of every frame.</p>
+  </div>
+</details>
+
+<!-- G10: Uncertainty quantification -->
+<details>
+  <summary>
+    G10 &mdash; Uncertainty quantification &mdash; knowing what you do not know
+    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Why uncertainty matters more than the number</h3>
+    <p>An alert that says "bin 51 is 3 dB above baseline" is only meaningful if you know the
+    baseline uncertainty. If sigma[51] = 4 dB (high natural variation), 3 dB above baseline
+    is normal. If sigma[51] = 0.5 dB (very stable tone), 3 dB is an emergency. The alert
+    must be expressed in terms of sigma, not absolute dB.</p>
+
+    <h3>Confidence bands on the spectrogram</h3>
+    <div class="mono-block">At each frequency bin k, the 99.7% confidence band (3-sigma rule) is:
+  Lower: mu[k] - 3 * sigma[k]
+  Upper: mu[k] + 3 * sigma[k]
+
+If current[k] > mu[k] + 3*sigma[k]:  significant elevation  (0.15% false alarm rate)
+If current[k] > mu[k] + 2*sigma[k]:  moderate elevation     (2.3% false alarm rate)
+If current[k] < mu[k] - 3*sigma[k]:  significant attenuation (possible sensor fault)</div>
+
+    <h3>Minimum baseline length for reliable sigma estimates</h3>
+    <div class="mono-block">Standard error of sigma = sigma / sqrt(2*(N-1))
+
+For N=10 frames:  SE = sigma / 4.24   (24% error in sigma)
+For N=30 frames:  SE = sigma / 7.68   (13% error in sigma)
+For N=100 frames: SE = sigma / 14.1   (7% error in sigma)
+For N=300 frames: SE = sigma / 24.5   (4% error in sigma)
+
+Recommendation: minimum 30 frames for operational use.
+                100+ frames for production baseline.
+                Collect over multiple operating days to capture load variation.</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the weather forecast:</strong> "30% chance of rain" is not a guess.
+      It is a calibrated probability derived from thousands of historical cases with similar
+      atmospheric patterns. Your sigma estimate is similarly calibrated &mdash; but only if
+      you have enough historical frames. With 5 frames, your sigma is a rough guess.
+      With 300 frames, it is a reliable characterisation of normal variation.
+    </div>
+  </div>
+</details>
+
+<!-- G11: Bearing fault frequencies worked example -->
+<details>
+  <summary>
+    G11 &mdash; Bearing fault frequencies &mdash; worked calculation for a real bearing
+    <span class="badge b-edu" style="margin-left:6px">Application</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>SKF 6205-2RS (common HVAC pump bearing) &mdash; full calculation</h3>
+    <div class="mono-block">Bearing data (SKF 6205-2RS):
+  n_balls    = 9   (number of rolling elements)
+  d_ball     = 7.938 mm  (ball diameter)
+  D_pitch    = 38.5 mm   (pitch circle diameter)
+  alpha      = 0 degrees (contact angle, deep groove = 0)
+
+  cos(alpha) = cos(0) = 1.0
+
+Shaft speed: 1450 RPM = 24.17 Hz (common HVAC pump speed at 50 Hz supply with slip)
+
+Fundamental frequencies:
+  BPFI = (n/2) * f_s * (1 + d/D * cos(alpha))
+       = (9/2) * 24.17 * (1 + 7.938/38.5 * 1.0)
+       = 4.5 * 24.17 * 1.2062
+       = 131.2 Hz
+
+  BPFO = (n/2) * f_s * (1 - d/D * cos(alpha))
+       = 4.5 * 24.17 * (1 - 0.2062)
+       = 4.5 * 24.17 * 0.7938
+       = 86.4 Hz
+
+  FTF  = (f_s/2) * (1 - d/D * cos(alpha))
+       = 12.08 * 0.7938
+       = 9.6 Hz   (cage rotation frequency)
+
+  BSF  = (D/(2*d)) * f_s * (1 - (d/D * cos(alpha))^2)
+       = (38.5/15.876) * 24.17 * (1 - 0.2062^2)
+       = 2.425 * 24.17 * 0.9575
+       = 56.2 Hz</div>
+
+    <h3>What to look for in the spectrogram</h3>
+    <div class="mono-block">Healthy:  Strong tone at 24.17 Hz (shaft), 72.5 Hz (3x), 217.5 Hz (blade-pass 9x)
+           No energy at 86.4 Hz, 131.2 Hz, 56.2 Hz, 9.6 Hz
+
+BPFO fault developing:
+  New tone at 86.4 Hz
+  Sidebands at 86.4 +/- 24.17 Hz: 62.2 Hz and 110.6 Hz
+  These sidebands = bearing defect modulating shaft rotation
+
+BPFI fault (more serious, inner race rotates):
+  New tone at 131.2 Hz
+  Sidebands at 131.2 +/- 24.17 Hz: 107.0 Hz and 155.4 Hz
+
+Cage fault (early warning, very low amplitude):
+  New tone at 9.6 Hz (near DC, hard to detect)
+  Look for amplitude modulation of shaft tone at 9.6 Hz rate</div>
+
+    <div class="callout">
+      <strong>Key point:</strong> You must know your bearing model number to calculate these frequencies.
+      Without the bearing geometry, you are doing pattern recognition rather than physics-based
+      diagnosis. Keep a record of every bearing installed in every monitored machine.
+    </div>
+  </div>
+</details>
+
+<!-- G12: How to use Panaural for a real inspection -->
+<details>
+  <summary>
+    G12 &mdash; Using Panaural for a real inspection &mdash; step-by-step procedure
+    <span class="badge b-edu" style="margin-left:6px">Procedure</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <h3>Equipment needed</h3>
+    <ul>
+      <li>Laptop with browser (Chrome, Firefox, Safari)</li>
+      <li>USB condenser microphone (built-in laptop mic is usable but less reliable)</li>
+      <li>Firm mounting: tape or magnetic holder to attach mic to pipe near bearing housing</li>
+      <li>Reference tone source: phone app or small speaker playing 440 Hz known signal</li>
+      <li>Hearing protection if operating near loud machinery</li>
+    </ul>
+
+    <h3>Procedure</h3>
+    <ol>
+      <li><strong>Mount mic firmly.</strong> Mark the position with tape so you can return to exactly the same spot. Position matters for amplitude consistency.</li>
+      <li><strong>Run reference calibration.</strong> Play 440 Hz reference tone near mic for 2 seconds. Record and note the dBFS level at 440 Hz bin. This is your session reference.</li>
+      <li><strong>Verify self-tests pass.</strong> Load the demo. All four self-tests must show PASS before continuing.</li>
+      <li><strong>Record 3&ndash;5 minutes of machine audio.</strong> Label the file with date, machine ID, and operating condition (load, speed if variable).</li>
+      <li><strong>Load WAV into Panaural.</strong> Set maxFreq to cover the highest bearing frequency of interest. Adjust dB ceiling until tones are visible (not saturated).</li>
+      <li><strong>Identify peaks.</strong> Compare auto-detected peaks to your kinematic frequency list. Document which peaks match which components.</li>
+      <li><strong>Compare to baseline.</strong> If a baseline recording exists, load it in a second tab. Look for new peaks, shifted frequencies, amplitude changes &gt; 6 dB.</li>
+      <li><strong>Document findings.</strong> Screenshot, note any anomalies, escalate if bearing fault frequencies detected.</li>
+    </ol>
+
+    <h3>Red flags that require immediate escalation</h3>
+    <ul>
+      <li>New tone at any bearing defect frequency (BPFI, BPFO, BSF, FTF)</li>
+      <li>Any existing tone rising &gt; 6 dB since last measurement</li>
+      <li>Broadband noise floor rising above 1 kHz (possible cavitation or lubrication failure)</li>
+      <li>Shaft frequency shifting (possible speed change or coupling problem)</li>
+    </ul>
+
+    <div class="callout amber">
+      <strong>Escalation rule:</strong> Panaural can flag "investigate this." It cannot diagnose
+      "replace bearing 3 now." Any flag must be reviewed by a qualified maintenance engineer
+      before scheduling work. Do not take a machine offline based solely on Panaural output
+      without qualified sign-off.
+    </div>
+  </div>
+</details>
+
+<!-- ================================================================== -->
 <!--  LOAD AUDIO                                                         -->
 <!-- ================================================================== -->
 <div class="section-label" style="margin-top:20px">Instrument</div>
