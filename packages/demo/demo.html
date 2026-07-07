@@ -1,0 +1,565 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: MIT -->
+<!-- Copyright (c) 2026 panditAbhis — Panaural Project -->
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Panaural — STFT Spectrogram Demo</title>
+  <style>
+    :root {
+      --bg: #0d0d0f;
+      --surface: #16181d;
+      --border: #2a2d36;
+      --accent: #4ade80;
+      --text: #e2e8f0;
+      --muted: #64748b;
+      --danger: #f87171;
+      --warning: #facc15;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-size: 14px;
+      line-height: 1.6;
+      padding: 24px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
+    .subtitle { color: var(--muted); margin-bottom: 24px; }
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 8px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text); }
+    label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
+    input[type="file"] {
+      display: block;
+      color: var(--text);
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 10px 14px;
+      width: 100%;
+      cursor: pointer;
+    }
+    input[type="file"]::file-selector-button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 4px;
+      padding: 6px 12px;
+      margin-right: 12px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 12px; }
+    .control { display: flex; flex-direction: column; gap: 6px; }
+    .control label { color: var(--muted); font-size: 12px; margin: 0; }
+    select, input[type="number"] {
+      background: var(--bg);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 8px 10px;
+      font-size: 13px;
+    }
+    button {
+      background: var(--accent);
+      color: #000;
+      border: none;
+      border-radius: 6px;
+      padding: 10px 24px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.15s;
+    }
+    button:hover { opacity: 0.85; }
+    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    #status {
+      padding: 10px 14px;
+      border-radius: 6px;
+      margin-top: 12px;
+      font-size: 13px;
+      display: none;
+    }
+    #status.info { background: #1e293b; color: #93c5fd; border: 1px solid #1d4ed8; display: block; }
+    #status.error { background: #1c1010; color: var(--danger); border: 1px solid #991b1b; display: block; }
+    #status.success { background: #0f1f0f; color: var(--accent); border: 1px solid #166534; display: block; }
+    .canvas-wrap {
+      position: relative;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      overflow: hidden;
+      margin-top: 8px;
+    }
+    canvas { display: block; width: 100%; }
+    .axis-label {
+      position: absolute;
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .axis-label.y-label { left: 4px; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: center; white-space: nowrap; }
+    .axis-label.x-label { bottom: 4px; left: 50%; transform: translateX(-50%); }
+    table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
+    th { background: var(--bg); color: var(--muted); font-weight: 600; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    td:first-child { font-weight: 600; font-family: monospace; }
+    .pass { color: var(--accent); }
+    .fail { color: var(--danger); }
+    .warn { color: var(--warning); }
+    .colorbar {
+      height: 16px;
+      border-radius: 4px;
+      background: linear-gradient(to right, #000, #003300, #006600, #00cc00, #66ff66);
+      margin-top: 8px;
+      position: relative;
+    }
+    .colorbar-labels {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--muted);
+      margin-top: 2px;
+    }
+  </style>
+</head>
+<body>
+
+<h1>Panaural</h1>
+<p class="subtitle">Acoustic drift-detection · STFT Spectrogram Demo · <em>Indicative, not diagnostic</em></p>
+
+<!-- File input -->
+<div class="card">
+  <h2>1 · Load Audio</h2>
+  <label>Select a PCM WAV file (16-bit, mono recommended)</label>
+  <input type="file" id="fileInput" accept=".wav" />
+
+  <div class="controls">
+    <div class="control">
+      <label>Window function</label>
+      <select id="windowType">
+        <option value="hann" selected>Hann</option>
+        <option value="hamming">Hamming</option>
+        <option value="blackman">Blackman</option>
+        <option value="rect">Rectangular</option>
+      </select>
+    </div>
+    <div class="control">
+      <label>Frame size (samples)</label>
+      <input type="number" id="frameSize" value="1024" min="64" max="65536" step="256" />
+    </div>
+    <div class="control">
+      <label>Hop size (samples)</label>
+      <input type="number" id="hopSize" value="512" min="1" max="65536" step="128" />
+    </div>
+  </div>
+
+  <div id="status">Ready. Load a WAV file to begin.</div>
+</div>
+
+<!-- Spectrogram -->
+<div class="card" id="spectrogramCard" style="display:none">
+  <h2>2 · Spectrogram</h2>
+  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:12px;color:var(--muted)">
+    <span id="fileInfo"></span>
+  </div>
+  <div class="canvas-wrap" style="min-height:240px">
+    <canvas id="spectrogram"></canvas>
+  </div>
+  <div class="colorbar"></div>
+  <div class="colorbar-labels"><span>Quiet (low dB)</span><span>Loud (high dB)</span></div>
+  <p style="font-size:11px;color:var(--muted);margin-top:6px">Y-axis: frequency 0 → Nyquist · X-axis: time →</p>
+</div>
+
+<!-- Self-test results -->
+<div class="card" id="selfTestCard" style="display:none">
+  <h2>3 · Self-Test Results</h2>
+  <table id="selfTestTable">
+    <thead>
+      <tr><th>Test</th><th>Pass?</th><th>Expected</th><th>Actual</th></tr>
+    </thead>
+    <tbody id="selfTestBody"></tbody>
+  </table>
+</div>
+
+<script>
+// ── Utilities ──────────────────────────────────────────────────────────────
+
+function setStatus(msg, type = 'info') {
+  const el = document.getElementById('status');
+  el.textContent = msg;
+  el.className = type;
+}
+
+// ── WAV parser ─────────────────────────────────────────────────────────────
+
+/**
+ * Parse a PCM WAV file from an ArrayBuffer.
+ * Returns { samples: Float64Array, sampleRate: number }
+ * Throws a descriptive error for unsupported formats.
+ */
+function parseWAV(buffer) {
+  const view = new DataView(buffer);
+
+  // RIFF header
+  const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
+  if (riff !== 'RIFF') throw new Error('Not a RIFF file (expected "RIFF" at byte 0)');
+
+  const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
+  if (wave !== 'WAVE') throw new Error('Not a WAVE file (expected "WAVE" at byte 8)');
+
+  // Walk chunks
+  let offset = 12;
+  let audioFormat = -1, numChannels = -1, sampleRate = -1, bitsPerSample = -1;
+  let dataStart = -1, dataLength = -1;
+
+  while (offset < buffer.byteLength - 8) {
+    const chunkId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset+1), view.getUint8(offset+2), view.getUint8(offset+3));
+    const chunkSize = view.getUint32(offset + 4, true);
+
+    if (chunkId === 'fmt ') {
+      audioFormat  = view.getUint16(offset + 8,  true);
+      numChannels  = view.getUint16(offset + 10, true);
+      sampleRate   = view.getUint32(offset + 12, true);
+      bitsPerSample = view.getUint16(offset + 22, true);
+    } else if (chunkId === 'data') {
+      dataStart  = offset + 8;
+      dataLength = chunkSize;
+    }
+
+    offset += 8 + chunkSize;
+    // Pad to even
+    if (chunkSize % 2 !== 0) offset++;
+  }
+
+  if (audioFormat !== 1) throw new Error(`Unsupported audio format ${audioFormat}. Only PCM (format=1) is supported.`);
+  if (bitsPerSample !== 16) throw new Error(`Unsupported bit depth ${bitsPerSample}. Only 16-bit PCM is supported.`);
+  if (dataStart === -1) throw new Error('No data chunk found in WAV file.');
+
+  // Decode 16-bit PCM → Float64, mix to mono if stereo
+  const bytesPerSample = bitsPerSample / 8;
+  const totalSamples = Math.floor(dataLength / (bytesPerSample * numChannels));
+  const samples = new Float64Array(totalSamples);
+
+  for (let i = 0; i < totalSamples; i++) {
+    let monoSample = 0;
+    for (let ch = 0; ch < numChannels; ch++) {
+      const byteOffset = dataStart + (i * numChannels + ch) * bytesPerSample;
+      monoSample += view.getInt16(byteOffset, true) / 32768.0;
+    }
+    samples[i] = monoSample / numChannels;
+  }
+
+  return { samples, sampleRate };
+}
+
+// ── Window functions ───────────────────────────────────────────────────────
+
+function applyWindow(samples, type) {
+  const N = samples.length;
+  const out = new Float64Array(N);
+  const TWO_PI = 2 * Math.PI;
+  for (let n = 0; n < N; n++) {
+    let w;
+    switch (type) {
+      case 'hann':    w = 0.5 * (1 - Math.cos(TWO_PI * n / (N - 1))); break;
+      case 'hamming': w = 0.54 - 0.46 * Math.cos(TWO_PI * n / (N - 1)); break;
+      case 'blackman': w = 0.42 - 0.5 * Math.cos(TWO_PI * n / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * n / (N - 1)); break;
+      case 'rect':    w = 1.0; break;
+      default:        w = 1.0;
+    }
+    out[n] = samples[n] * w;
+  }
+  return out;
+}
+
+// ── Cooley-Tukey radix-2 DIT FFT ──────────────────────────────────────────
+
+function fftInPlace(re, im) {
+  const N = re.length;
+  // Bit-reversal
+  let j = 0;
+  for (let i = 1; i < N; i++) {
+    let bit = N >> 1;
+    for (; j & bit; bit >>= 1) j ^= bit;
+    j ^= bit;
+    if (i < j) {
+      [re[i], re[j]] = [re[j], re[i]];
+      [im[i], im[j]] = [im[j], im[i]];
+    }
+  }
+  // Butterfly
+  for (let len = 2; len <= N; len <<= 1) {
+    const ang = -2 * Math.PI / len;
+    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    for (let i = 0; i < N; i += len) {
+      let curRe = 1.0, curIm = 0.0;
+      for (let k = 0; k < len / 2; k++) {
+        const uRe = re[i+k], uIm = im[i+k];
+        const vRe = re[i+k+len/2] * curRe - im[i+k+len/2] * curIm;
+        const vIm = re[i+k+len/2] * curIm + im[i+k+len/2] * curRe;
+        re[i+k] = uRe + vRe; im[i+k] = uIm + vIm;
+        re[i+k+len/2] = uRe - vRe; im[i+k+len/2] = uIm - vIm;
+        const nRe = curRe * wRe - curIm * wIm;
+        curIm = curRe * wIm + curIm * wRe;
+        curRe = nRe;
+      }
+    }
+  }
+}
+
+function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+
+// ── STFT ──────────────────────────────────────────────────────────────────
+
+/**
+ * Compute STFT. Returns 2D array [frame][bin] of magnitude in dB.
+ */
+function computeSTFT(samples, frameSize, hopSize, windowType) {
+  const fftSize = nextPow2(frameSize);
+  const numBins = fftSize / 2 + 1;
+  const frames = [];
+
+  for (let offset = 0; offset + frameSize <= samples.length; offset += hopSize) {
+    const rawFrame = samples.slice(offset, offset + frameSize);
+    const windowed = applyWindow(rawFrame, windowType);
+
+    const re = new Float64Array(fftSize);
+    const im = new Float64Array(fftSize);
+    re.set(windowed);
+    fftInPlace(re, im);
+
+    const bins = new Float64Array(numBins);
+    for (let k = 0; k < numBins; k++) {
+      const mag = Math.sqrt(re[k]*re[k] + im[k]*im[k]) / fftSize;
+      bins[k] = mag > 1e-12 ? 20 * Math.log10(mag) : -240;
+    }
+    frames.push(bins);
+  }
+  return frames;
+}
+
+// ── Spectrogram renderer ───────────────────────────────────────────────────
+
+function renderSpectrogram(frames, canvas) {
+  const numFrames = frames.length;
+  if (numFrames === 0) return;
+  const numBins = frames[0].length;
+
+  const W = Math.min(numFrames, 1200);
+  const H = Math.min(numBins, 512);
+  canvas.width  = W;
+  canvas.height = H;
+
+  const ctx = canvas.getContext('2d');
+  const imageData = ctx.createImageData(W, H);
+  const data = imageData.data;
+
+  // Find global dB range for colour normalisation
+  let minDb = Infinity, maxDb = -Infinity;
+  for (const frame of frames) {
+    for (const v of frame) {
+      if (v > -200) { if (v < minDb) minDb = v; if (v > maxDb) maxDb = v; }
+    }
+  }
+  const range = maxDb - minDb || 1;
+
+  // Downsample frames to W columns
+  for (let x = 0; x < W; x++) {
+    const fi = Math.floor((x / W) * numFrames);
+    const frame = frames[fi];
+    // Downsample bins to H rows (frequency: row 0 = Nyquist, row H-1 = DC)
+    for (let y = 0; y < H; y++) {
+      const bi = Math.floor(((H - 1 - y) / H) * numBins);
+      const db = frame[bi];
+      const t = Math.max(0, Math.min(1, (db - minDb) / range));
+      const px = (y * W + x) * 4;
+      // Color: black → dark green → bright green
+      data[px + 0] = 0;
+      data[px + 1] = Math.round(t * 255);
+      data[px + 2] = Math.round(t * t * 60);
+      data[px + 3] = 255;
+    }
+  }
+
+  ctx.putImageData(imageData, 0, 0);
+}
+
+// ── Self-test suite (inline, same algorithm as core) ──────────────────────
+
+function generateSine(freq, sampleRate, durationS) {
+  const N = Math.floor(sampleRate * durationS);
+  const out = new Float64Array(N);
+  for (let i = 0; i < N; i++) {
+    out[i] = Math.sin(2 * Math.PI * freq * i / sampleRate);
+  }
+  return out;
+}
+
+function gaussianNoise(N, stdDev, seed = 42) {
+  const out = new Float64Array(N);
+  let s = seed;
+  function rand() { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; }
+  for (let i = 0; i < N; i += 2) {
+    const u1 = Math.max(rand(), 1e-10), u2 = rand();
+    const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
+    const z1 = Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * u2);
+    out[i] = z0 * stdDev;
+    if (i+1 < N) out[i+1] = z1 * stdDev;
+  }
+  return out;
+}
+
+function peakBin(bins) {
+  let peak = 1, peakVal = -Infinity;
+  for (let k = 1; k < bins.length; k++) {
+    if (bins[k] > peakVal) { peakVal = bins[k]; peak = k; }
+  }
+  return peak;
+}
+
+function runSelfTests() {
+  const SR = 8000, N = SR;
+  const frameSize = N, hopSize = N;
+  const fftSize = nextPow2(frameSize);
+  const TARGET = 50;
+  const EXPECTED_BIN = Math.round(TARGET * fftSize / SR);
+  const TOL = 3;
+  const results = [];
+
+  // 1. Sine detection
+  {
+    const sig = generateSine(TARGET, SR, 1.0);
+    const frames = computeSTFT(sig, frameSize, hopSize, 'hann');
+    const peak = peakBin(frames[0]);
+    const passed = Math.abs(peak - EXPECTED_BIN) <= TOL;
+    results.push({ name: 'sine_detection', passed,
+      expected: `peak bin ±${TOL} of ${EXPECTED_BIN} (${TARGET} Hz)`,
+      actual: `peak bin = ${peak} (${(peak * SR / fftSize).toFixed(1)} Hz)` });
+  }
+
+  // 2. Sine + noise
+  {
+    const sig = generateSine(TARGET, SR, 1.0);
+    const noise = gaussianNoise(N, 0.224);
+    const noisy = new Float64Array(N);
+    for (let i = 0; i < N; i++) noisy[i] = sig[i] + noise[i];
+    const frames = computeSTFT(noisy, frameSize, hopSize, 'hann');
+    const peak = peakBin(frames[0]);
+    const passed = Math.abs(peak - EXPECTED_BIN) <= TOL;
+    results.push({ name: 'sine_plus_noise', passed,
+      expected: `peak bin ±${TOL} of ${EXPECTED_BIN} despite noise`,
+      actual: `peak bin = ${peak} (${(peak * SR / fftSize).toFixed(1)} Hz)` });
+  }
+
+  // 3. Silence
+  {
+    const silence = new Float64Array(N).fill(0);
+    const frames = computeSTFT(silence, frameSize, hopSize, 'hann');
+    const maxDb = Math.max(...frames[0]);
+    const passed = maxDb < -80;
+    results.push({ name: 'silence', passed,
+      expected: 'max bin < -80 dB',
+      actual: `max bin = ${maxDb.toFixed(2)} dB` });
+  }
+
+  // 4. Clipping
+  {
+    const big = generateSine(TARGET, SR, 1.0);
+    for (let i = 0; i < big.length; i++) big[i] *= 2.0;
+    let atLimit = 0;
+    for (let i = 0; i < big.length; i++) {
+      big[i] = Math.max(-0.9, Math.min(0.9, big[i]));
+      if (Math.abs(big[i]) >= 0.9) atLimit++;
+    }
+    const frac = atLimit / big.length;
+    const detected = frac > 0.05;
+    results.push({ name: 'clipping', passed: detected,
+      expected: '>5% samples at ±0.9',
+      actual: `${(frac*100).toFixed(1)}% samples at ±0.9${detected ? ' — WARNING: ADC saturation detected' : ''}` });
+  }
+
+  return results;
+}
+
+function renderSelfTests() {
+  const tbody = document.getElementById('selfTestBody');
+  tbody.innerHTML = '';
+  const results = runSelfTests();
+  for (const r of results) {
+    const tr = document.createElement('tr');
+    const warn = r.actual.includes('WARNING');
+    tr.innerHTML = `
+      <td>${r.name}</td>
+      <td class="${r.passed ? (warn ? 'warn' : 'pass') : 'fail'}">${r.passed ? (warn ? '⚠ PASS' : '✓ PASS') : '✗ FAIL'}</td>
+      <td>${r.expected}</td>
+      <td>${r.actual}</td>`;
+    tbody.appendChild(tr);
+  }
+  document.getElementById('selfTestCard').style.display = '';
+}
+
+// ── Main event handler ─────────────────────────────────────────────────────
+
+document.getElementById('fileInput').addEventListener('change', function(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+  setStatus(`Loading ${file.name}…`, 'info');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const { samples, sampleRate } = parseWAV(e.target.result);
+      const frameSize = parseInt(document.getElementById('frameSize').value, 10);
+      const hopSize   = parseInt(document.getElementById('hopSize').value, 10);
+      const windowType = document.getElementById('windowType').value;
+
+      if (hopSize >= frameSize) {
+        setStatus('Hop size must be smaller than frame size.', 'error');
+        return;
+      }
+
+      setStatus(`Computing STFT on ${samples.length} samples at ${sampleRate} Hz…`, 'info');
+
+      setTimeout(() => {
+        try {
+          const frames = computeSTFT(samples, frameSize, hopSize, windowType);
+          const canvas = document.getElementById('spectrogram');
+          renderSpectrogram(frames, canvas);
+
+          document.getElementById('fileInfo').textContent =
+            `${file.name} · ${sampleRate} Hz · ${samples.length} samples · ${frames.length} frames · frame=${frameSize} hop=${hopSize} window=${windowType}`;
+          document.getElementById('spectrogramCard').style.display = '';
+
+          // Run self-tests after spectrogram
+          renderSelfTests();
+
+          setStatus(`Done. ${frames.length} STFT frames rendered.`, 'success');
+        } catch(err) {
+          setStatus(`Processing error: ${err.message}`, 'error');
+        }
+      }, 10);
+
+    } catch(err) {
+      setStatus(`WAV error: ${err.message}`, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// Run self-tests on page load (before any file is loaded)
+window.addEventListener('DOMContentLoaded', () => {
+  renderSelfTests();
+  setStatus('Ready — select a PCM WAV file to render its spectrogram.', 'info');
+});
+</script>
+</body>
+</html>
