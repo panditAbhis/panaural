@@ -2,634 +2,705 @@
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 panditAbhis — Panaural Project -->
 <!--
-  CHANGELOG v1.2.0 — Educational edition
-  ───────────────────────────────────────
-  v1.1.0: frameSize 1024→8000, inferno colormap, labeled axes, hover, peak detection, freq zoom
-  v1.2.0: full investigator audit (market readiness), 8 educational deep-dives,
-          sidebands explainer, dB primer, Nyquist/aliasing, Fourier history,
-          window function comparison, Cooley-Tukey walkthrough, self-test annotations
+  v1.2.0 — Educational edition
+  Resolution fix: frameSize 1024->8000, inferno colormap, labeled axes,
+  hover cursor, peak detection, freq zoom, market audit, 8 deep-dives
 -->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panaural — Learn Acoustic Analysis</title>
+  <title>Panaural — Acoustic Analysis Demo</title>
   <style>
     :root {
-      --bg:#0a0a0c; --s1:#13151a; --s2:#1a1d24; --s3:#1e2230;
-      --bd:#252830; --bd2:#2e3340;
-      --green:#4ade80; --blue:#60a5fa; --purple:#a78bfa;
-      --orange:#fb923c; --yellow:#fbbf24; --red:#f87171;
-      --text:#e2e8f0; --muted:#64748b; --muted2:#94a3b8;
+      --bg:     #09090b;
+      --s1:     #111114;
+      --s2:     #18181c;
+      --s3:     #1f1f24;
+      --bd:     #27272a;
+      --bd2:    #3f3f46;
+      --green:  #4ade80;
+      --blue:   #60a5fa;
+      --purple: #a78bfa;
+      --amber:  #fbbf24;
+      --red:    #f87171;
+      --orange: #fb923c;
+      --text:   #e4e4e7;
+      --muted:  #71717a;
+      --muted2: #a1a1aa;
     }
-    *{box-sizing:border-box;margin:0;padding:0}
-    body{background:var(--bg);color:var(--text);font-family:'Segoe UI',system-ui,sans-serif;
-         font-size:14px;line-height:1.7;padding:24px 20px;max-width:1000px;margin:0 auto}
-    h1{font-size:1.7rem;font-weight:800;color:var(--green);letter-spacing:-0.02em}
-    h2{font-size:1rem;font-weight:700;color:var(--text);margin-bottom:12px}
-    h3{font-size:.9rem;font-weight:700;color:var(--muted2);margin-bottom:8px}
-    p{margin-bottom:.75em} p:last-child{margin-bottom:0}
-    a{color:var(--blue);text-decoration:none} a:hover{text-decoration:underline}
-    code{background:var(--s3);color:var(--orange);padding:1px 5px;border-radius:3px;font-size:12px;font-family:monospace}
-    strong{color:var(--muted2)}
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 14px;
+      line-height: 1.7;
+      padding: 32px 24px;
+      max-width: 960px;
+      margin: 0 auto;
+    }
+    h1 { font-size: 1.6rem; font-weight: 700; color: var(--green); letter-spacing: -0.02em; }
+    h2 { font-size: 0.875rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); margin-bottom: 14px; }
+    h3 { font-size: 0.9rem; font-weight: 600; color: var(--muted2); margin: 14px 0 6px; }
+    p  { margin-bottom: 0.65em; color: var(--muted2); font-size: 13px; }
+    p:last-child { margin-bottom: 0; }
+    strong { color: var(--text); font-weight: 600; }
+    code {
+      background: var(--s3); color: var(--orange);
+      padding: 1px 5px; border-radius: 3px;
+      font-size: 12px; font-family: 'Cascadia Code', 'Fira Code', monospace;
+    }
 
-    /* ── Layout ── */
-    .card{background:var(--s1);border:1px solid var(--bd);border-radius:8px;padding:18px 20px;margin-bottom:16px}
-    .grid2{display:grid;grid-template-columns:1fr 1fr;gap:12px}
-    .grid3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
-    @media(max-width:600px){.grid2,.grid3{grid-template-columns:1fr}}
+    /* ── Dividers ── */
+    .section-label {
+      font-size: 10px; font-weight: 700; text-transform: uppercase;
+      letter-spacing: 0.1em; color: var(--muted);
+      border-bottom: 1px solid var(--bd);
+      padding-bottom: 6px; margin: 28px 0 14px;
+    }
+
+    /* ── Cards ── */
+    .card {
+      background: var(--s1);
+      border: 1px solid var(--bd);
+      border-radius: 6px;
+      padding: 18px 20px;
+      margin-bottom: 12px;
+    }
 
     /* ── Badges ── */
-    .badge{display:inline-block;font-size:11px;font-weight:700;padding:2px 8px;border-radius:4px;letter-spacing:.04em}
-    .badge-fix{background:var(--purple);color:#000}
-    .badge-pass{background:#166534;color:var(--green)}
-    .badge-fail{background:#7f1d1d;color:var(--red)}
-    .badge-partial{background:#78350f;color:var(--yellow)}
-    .badge-edu{background:#1e3a5f;color:var(--blue)}
+    .badge {
+      display: inline-block; font-size: 10px; font-weight: 700;
+      padding: 2px 7px; border-radius: 3px; letter-spacing: 0.05em;
+      vertical-align: middle;
+    }
+    .b-fix    { background: #2e1065; color: var(--purple); border: 1px solid #5b21b6; }
+    .b-edu    { background: #1e3a5f; color: var(--blue);   border: 1px solid #1d4ed8; }
+    .b-pass   { background: #052e16; color: var(--green);  border: 1px solid #166534; }
+    .b-fail   { background: #450a0a; color: var(--red);    border: 1px solid #7f1d1d; }
+    .b-warn   { background: #431407; color: var(--amber);  border: 1px solid #78350f; }
+    .b-tier-y { background: #052e16; color: var(--green);  border: 1px solid #166534; font-size: 11px; }
+    .b-tier-n { background: #450a0a; color: var(--red);    border: 1px solid #7f1d1d; font-size: 11px; }
+    .b-tier-p { background: #431407; color: var(--amber);  border: 1px solid #78350f; font-size: 11px; }
 
-    /* ── IUS banner ── */
-    .ius{background:#1c1307;border:1px solid #78350f;border-left:4px solid var(--yellow);
-         border-radius:6px;padding:10px 14px;margin-bottom:16px;font-size:12px;color:#fde68a}
+    /* ── IUS ── */
+    .ius {
+      background: #1c1202; border: 1px solid #78350f; border-left: 3px solid var(--amber);
+      border-radius: 4px; padding: 10px 14px; margin: 10px 0 20px;
+      font-size: 12px; color: #fde68a; line-height: 1.6;
+    }
 
     /* ── Fix notice ── */
-    .fix-notice{background:#1a1428;border:1px solid #5b21b6;border-left:4px solid var(--purple);
-                border-radius:8px;padding:16px 18px;margin-bottom:16px}
-    .fix-notice p{font-size:13px;color:#c4b5fd}
-    .fix-code{font-family:monospace;font-size:12px;background:#120e1e;padding:8px 12px;
-              border-radius:4px;color:#d8b4fe;margin-top:8px;line-height:1.9}
-
-    /* ── Accordion (details/summary) ── */
-    details{border:1px solid var(--bd);border-radius:8px;margin-bottom:10px;overflow:hidden}
-    details[open]{border-color:var(--bd2)}
-    summary{
-      cursor:pointer;padding:14px 18px;background:var(--s1);
-      font-size:13px;font-weight:600;color:var(--muted2);
-      list-style:none;display:flex;align-items:center;gap:10px;
-      user-select:none;
+    .fix-notice {
+      background: var(--s1); border: 1px solid var(--bd); border-left: 3px solid var(--purple);
+      border-radius: 4px; padding: 16px 18px; margin-bottom: 12px;
     }
-    summary::-webkit-details-marker{display:none}
-    summary::after{content:'＋';margin-left:auto;color:var(--muted);font-size:16px;font-weight:300;transition:.15s}
-    details[open] summary::after{content:'－'}
-    details[open] summary{background:var(--s2);color:var(--text)}
-    .acc-body{padding:18px 20px;background:var(--s2);border-top:1px solid var(--bd)}
-    .acc-body p,.acc-body li{font-size:13px;color:var(--muted2);line-height:1.75}
-    .acc-body ul,.acc-body ol{padding-left:20px;margin-bottom:.75em}
-    .acc-body li{margin-bottom:4px}
-    .acc-body h4{font-size:13px;font-weight:700;color:var(--blue);margin:14px 0 6px}
-    .acc-body h5{font-size:12px;font-weight:700;color:var(--green);margin:10px 0 4px}
+    .fix-notice p { font-size: 13px; }
+    .fix-code {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 12px; background: var(--s3);
+      padding: 10px 14px; border-radius: 4px;
+      color: var(--muted2); margin-top: 10px; line-height: 2;
+    }
+    .fix-code .ok  { color: var(--green); }
+    .fix-code .bad { color: var(--red); }
 
-    /* ── Analogy box ── */
-    .analogy{background:var(--s3);border-left:3px solid var(--blue);border-radius:0 6px 6px 0;
-             padding:10px 14px;margin:12px 0;font-size:13px;color:#bfdbfe}
-    .analogy strong{color:var(--blue)}
+    /* ── Accordions ── */
+    details {
+      border: 1px solid var(--bd);
+      border-radius: 4px;
+      margin-bottom: 6px;
+    }
+    details[open] { border-color: var(--bd2); }
+    summary {
+      cursor: pointer;
+      padding: 12px 16px;
+      background: var(--s1);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--muted2);
+      list-style: none;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      user-select: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary .toggle {
+      margin-left: auto; color: var(--muted); font-size: 18px;
+      font-weight: 300; line-height: 1; flex-shrink: 0;
+    }
+    details[open] summary { background: var(--s2); color: var(--text); }
+    details[open] summary .toggle::before { content: '−'; }
+    summary .toggle::before { content: '+'; }
+    .acc-body {
+      padding: 18px 20px;
+      background: var(--s2);
+      border-top: 1px solid var(--bd);
+    }
+    .acc-body p, .acc-body li { font-size: 13px; color: var(--muted2); line-height: 1.75; }
+    .acc-body ul, .acc-body ol { padding-left: 20px; margin-bottom: 0.65em; }
+    .acc-body li { margin-bottom: 4px; }
+    .acc-body h3 { color: var(--blue); margin: 14px 0 6px; }
+    .acc-body h4 { font-size: 12px; font-weight: 700; color: var(--green); margin: 10px 0 4px; text-transform: uppercase; letter-spacing: 0.04em; }
 
-    /* ── Info box ── */
-    .infobox{background:var(--s3);border:1px solid var(--bd2);border-radius:6px;
-             padding:10px 14px;margin:10px 0;font-size:12px;color:var(--muted2);font-family:monospace}
+    /* ── Callout boxes ── */
+    .callout {
+      border-left: 3px solid var(--blue); border-radius: 0 4px 4px 0;
+      background: var(--s3); padding: 10px 14px; margin: 12px 0;
+      font-size: 13px; color: var(--muted2); line-height: 1.7;
+    }
+    .callout.amber { border-left-color: var(--amber); }
+    .callout strong { color: var(--blue); }
+    .callout.amber strong { color: var(--amber); }
+    .mono-block {
+      font-family: 'Cascadia Code', 'Fira Code', monospace;
+      font-size: 11.5px; background: var(--s3); border: 1px solid var(--bd);
+      padding: 10px 14px; border-radius: 4px; margin: 10px 0;
+      color: var(--muted2); line-height: 2; white-space: pre-wrap;
+    }
+    .mono-block .hi { color: var(--text); }
+    .mono-block .ok { color: var(--green); }
+    .mono-block .bad { color: var(--red); }
 
-    /* ── Market audit ── */
-    .audit-grid{display:grid;grid-template-columns:1fr 1fr;gap:6px;margin:12px 0}
-    @media(max-width:550px){.audit-grid{grid-template-columns:1fr}}
-    .audit-row{display:flex;align-items:flex-start;gap:8px;padding:8px 10px;
-               background:var(--s3);border-radius:5px;font-size:12px}
-    .audit-row .label{font-weight:700;color:var(--text);white-space:nowrap;min-width:120px}
-    .audit-row .note{color:var(--muted2)}
-    .verdict-tier{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;margin-top:12px}
-    .tier-no{color:var(--red);font-weight:700;font-size:12px}
-    .tier-partial{color:var(--yellow);font-weight:700;font-size:12px}
-    .tier-yes{color:var(--green);font-weight:700;font-size:12px}
-    .tier-desc{font-size:12px;color:var(--muted2)}
+    /* ── Audit grid ── */
+    .audit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin: 10px 0; }
+    @media(max-width:580px) { .audit-grid { grid-template-columns: 1fr; } }
+    .audit-row {
+      display: flex; align-items: flex-start; gap: 8px;
+      padding: 9px 11px; background: var(--s3); border-radius: 4px; font-size: 12px;
+    }
+    .audit-row .al { font-weight: 600; color: var(--text); white-space: nowrap; min-width: 110px; }
+    .audit-row .an { color: var(--muted2); line-height: 1.5; }
+    .verdict-grid {
+      display: grid; grid-template-columns: 70px 1fr;
+      gap: 6px 12px; margin-top: 12px; align-items: start;
+    }
+    .verdict-desc { font-size: 12px; color: var(--muted2); padding-top: 2px; }
+
+    /* ── Window cards ── */
+    .win-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 8px; margin: 10px 0; }
+    @media(max-width:580px) { .win-grid { grid-template-columns: 1fr 1fr; } }
+    .win-card {
+      background: var(--s3); border: 1px solid var(--bd);
+      border-radius: 4px; padding: 10px 12px;
+    }
+    .win-card h4 { color: var(--green); font-size: 12px; margin-bottom: 4px; }
+    .win-card p { font-size: 11px; color: var(--muted); margin-bottom: 3px; }
 
     /* ── Controls ── */
-    label{display:block;color:var(--muted);font-size:12px;margin-bottom:4px}
-    input[type="file"]{display:block;color:var(--text);background:var(--bg);
-      border:1px solid var(--bd);border-radius:6px;padding:10px 14px;width:100%;cursor:pointer}
-    input[type="file"]::file-selector-button{background:var(--green);color:#000;border:none;
-      border-radius:4px;padding:6px 14px;margin-right:12px;font-weight:700;cursor:pointer}
-    .controls{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-top:12px}
-    .control{display:flex;flex-direction:column;gap:4px}
-    .control .hint{font-size:11px;color:#374151;margin-top:2px}
-    select,input[type="number"]{background:var(--bg);border:1px solid var(--bd);border-radius:6px;
-      color:var(--text);padding:7px 10px;font-size:13px;width:100%}
+    label { display: block; color: var(--muted); font-size: 11px; font-weight: 600;
+            text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 5px; }
+    input[type="file"] {
+      display: block; color: var(--text); background: var(--bg);
+      border: 1px solid var(--bd); border-radius: 4px;
+      padding: 10px 14px; width: 100%; cursor: pointer;
+    }
+    input[type="file"]::file-selector-button {
+      background: var(--green); color: #000; border: none; border-radius: 3px;
+      padding: 5px 12px; margin-right: 12px; font-weight: 700;
+      font-size: 12px; cursor: pointer;
+    }
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px,1fr)); gap: 10px; margin-top: 14px; }
+    .control { display: flex; flex-direction: column; gap: 4px; }
+    .hint { font-size: 11px; color: var(--muted); margin-top: 2px; text-transform: none; letter-spacing: 0; font-weight: 400; }
+    select, input[type="number"] {
+      background: var(--bg); border: 1px solid var(--bd); border-radius: 4px;
+      color: var(--text); padding: 7px 10px; font-size: 13px; width: 100%;
+    }
+    select:focus, input[type="number"]:focus { outline: 1px solid var(--bd2); }
 
     /* ── Status ── */
-    #status{padding:10px 14px;border-radius:6px;margin-top:12px;font-size:13px;display:none}
-    #status.info   {background:#1e293b;color:#93c5fd;border:1px solid #1d4ed8;display:block}
-    #status.error  {background:#1c1010;color:var(--red);border:1px solid #991b1b;display:block}
-    #status.success{background:#0f1f0f;color:var(--green);border:1px solid #166534;display:block}
+    #status { padding: 10px 14px; border-radius: 4px; margin-top: 12px; font-size: 13px; display: none; }
+    #status.info    { background: #0f1729; color: var(--blue);  border: 1px solid #1d4ed8; display: block; }
+    #status.error   { background: #1a0505; color: var(--red);   border: 1px solid #7f1d1d; display: block; }
+    #status.success { background: #031a0a; color: var(--green); border: 1px solid #166534; display: block; }
 
     /* ── Spectrogram ── */
-    canvas#spectrogram{display:block;width:100%;image-rendering:pixelated}
-    #tooltip{position:fixed;background:#1e293b;border:1px solid #334155;color:var(--text);
-             font-size:12px;font-family:monospace;padding:6px 10px;border-radius:5px;
-             pointer-events:none;display:none;z-index:100;line-height:1.9;
-             box-shadow:0 4px 12px rgba(0,0,0,.4)}
-    canvas#colorbar{display:block;width:100%;height:18px;border-radius:3px}
-    .colorbar-labels{display:flex;justify-content:space-between;font-size:11px;
-                     color:var(--muted);margin-top:2px;font-family:monospace}
-    .peaks-row{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
-    .peak-chip{background:#1e293b;border:1px solid #334155;color:var(--blue);
-               font-family:monospace;font-size:12px;padding:3px 10px;border-radius:12px}
+    canvas#spectrogram { display: block; width: 100%; image-rendering: pixelated; }
+    canvas#colorbar    { display: block; width: 100%; height: 16px; border-radius: 2px; }
+    .colorbar-labels {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--muted);
+      margin-top: 3px; font-family: monospace;
+    }
+    .peaks-row { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+    .peak-chip {
+      background: var(--s3); border: 1px solid var(--bd2);
+      color: var(--blue); font-family: monospace; font-size: 11px;
+      padding: 3px 9px; border-radius: 3px;
+    }
 
-    /* ── Self-test ── */
-    table{width:100%;border-collapse:collapse;font-size:13px;margin-top:8px}
-    th{background:var(--bg);color:var(--muted);font-weight:600;padding:8px 12px;
-       text-align:left;border-bottom:1px solid var(--bd)}
-    td{padding:8px 12px;border-bottom:1px solid var(--bd);vertical-align:top}
-    td:first-child{font-weight:600;font-family:monospace;width:150px}
-    .pass{color:var(--green)} .fail{color:var(--red)} .warn{color:var(--yellow)}
-    .test-sub{font-size:11px;color:var(--muted);margin-top:2px;font-style:italic}
+    /* ── Tooltip ── */
+    #tooltip {
+      position: fixed; background: var(--s2); border: 1px solid var(--bd2);
+      color: var(--text); font-size: 12px; font-family: monospace;
+      padding: 7px 11px; border-radius: 4px;
+      pointer-events: none; display: none; z-index: 100;
+      line-height: 1.9; box-shadow: 0 4px 16px rgba(0,0,0,.5);
+    }
 
-    /* ── Window comparison ── */
-    .win-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin:10px 0}
-    @media(max-width:600px){.win-grid{grid-template-columns:1fr 1fr}}
-    .win-card{background:var(--s3);border:1px solid var(--bd);border-radius:6px;padding:10px 12px}
-    .win-card h5{color:var(--green);font-size:12px;margin-bottom:4px}
-    .win-card p{font-size:11px;color:var(--muted2);margin-bottom:4px}
-    .win-card canvas{display:block;width:100%;height:50px;margin-top:6px}
+    /* ── Self-test table ── */
+    table { width: 100%; border-collapse: collapse; font-size: 12px; margin-top: 10px; }
+    th {
+      background: var(--bg); color: var(--muted); font-weight: 600;
+      padding: 8px 12px; text-align: left;
+      border-bottom: 1px solid var(--bd);
+      font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em;
+    }
+    td { padding: 9px 12px; border-bottom: 1px solid var(--bd); vertical-align: top; }
+    td:first-child { font-family: monospace; font-size: 12px; color: var(--muted2); width: 145px; }
+    .pass { color: var(--green); font-weight: 700; }
+    .fail { color: var(--red);   font-weight: 700; }
+    .warn { color: var(--amber); font-weight: 700; }
+    .sub  { font-size: 11px; color: var(--muted); margin-top: 3px; font-style: italic; }
   </style>
 </head>
 <body>
 
-<!-- ── Header ────────────────────────────────────────────────────────────── -->
 <h1>Panaural</h1>
-<p style="color:var(--muted);margin-bottom:4px;font-size:13px">
-  Acoustic condition monitoring · Weekend 1 — STFT Spectrogram Demo + Full Education
+<p style="color:var(--muted);font-size:13px;margin-top:2px">
+  Acoustic condition monitoring &middot; Weekend 1 &mdash; STFT Spectrogram + Education
 </p>
+
 <div class="ius">
-  ⚠ <strong>Intended Use:</strong> Indicative drift detection only. Not diagnostic. Not a replacement for
-  ISO 13373 / ISO 20816 certified inspection. All maintenance decisions require qualified personnel.
-  See the Market Readiness Audit below for exactly what this tool can and cannot do.
+  <strong>Intended Use:</strong> Indicative drift detection only. Not diagnostic.
+  Not a replacement for ISO&nbsp;13373 / ISO&nbsp;20816 certified inspection.
+  All maintenance decisions require qualified personnel.
 </div>
 
-<!-- ── v1.1 Fix notice ──────────────────────────────────────────────────── -->
+<!-- Fix notice -->
 <div class="fix-notice">
-  <span class="badge badge-fix">v1.1.0 FIX</span>&nbsp;
-  <span class="badge badge-pass">v1.2.0 EDUCATIONAL EDITION</span>
+  <span class="badge b-fix">v1.1.0 FIX</span>
+  &nbsp;
+  <span class="badge b-edu">v1.2.0 EDUCATIONAL EDITION</span>
   <p style="margin-top:10px">
-    <strong>What changed in v1.1.0:</strong> Default frame size <code>1024 → 8000</code> samples.
-    At 8,000 Hz sample rate, <code>1024</code> gave <strong>7.8 Hz per bucket</strong> — like a ruler with marks
-    every 8 mm. Pump bearing sidebands are 1–5 Hz apart: invisible. At <code>8000</code> samples,
-    each bucket is <strong>0.98 Hz wide</strong>. Sidebands now resolve. The spectrogram now matches
-    scipy/MATLAB/SpectraPlus output.
+    Default frame size changed <code>1024 &rarr; 8000</code> samples.
+    At 8,000&thinsp;Hz sample rate, frame&nbsp;1024 gave <strong>7.8&thinsp;Hz per bucket</strong>
+    &mdash; pump bearing sidebands are 1&ndash;5&thinsp;Hz apart: invisible.
+    At&nbsp;8000 samples, each bucket is <strong>0.98&thinsp;Hz wide</strong>. Sidebands resolve.
+    Output now matches scipy / MATLAB / SpectraPlus.
   </p>
-  <div class="fix-code">
-Before: frameSize=1024 → resolution = 8000/1024 = <span style="color:#f87171">7.8 Hz/bin  ✗ sidebands invisible</span>
-After:  frameSize=8000 → resolution = 8000/8000 = <span style="color:#4ade80">0.98 Hz/bin ✓ sidebands resolve</span>
-Source: ISO 13373-2 requires ≤ 1 Hz/bin for bearing sideband detection</div>
+  <div class="fix-code">Before: frameSize=1024 &rarr; 8000/1024 = <span class="bad">7.8 Hz/bin  &times; sidebands invisible</span>
+After:  frameSize=8000 &rarr; 8000/8000 = <span class="ok">0.98 Hz/bin &check; sidebands resolve</span>
+Source: ISO 13373-2 requires &le; 1 Hz/bin for bearing sideband detection</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  MARKET READINESS AUDIT                                                -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ================================================================== -->
+<!--  MARKET READINESS AUDIT                                             -->
+<!-- ================================================================== -->
+<div class="section-label">Investigator Audit</div>
+
 <details>
   <summary>
-    <span style="font-size:16px">🔍</span>
-    <span>Market Readiness Audit — Can Panaural be sold / used in industry today?</span>
-    <span class="badge badge-partial" style="margin-left:8px">Tier 4 of 5</span>
+    Market Readiness &mdash; can Panaural be used in industry today?
+    <span class="badge b-warn" style="margin-left:6px">Tier 4 of 5</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>Independent audit run against ISO 10816-3, ISO 13373-1/2, IEC 61672-1. No bias. Numbers first.</p>
+    <p>Independent audit against ISO 10816-3, ISO 13373-1/2, IEC 61672-1. Numbers first.</p>
 
-    <h4>What the math gets right (verified against scipy)</h4>
+    <h3>What the math gets right (verified against scipy)</h3>
     <div class="audit-grid">
-      <div class="audit-row"><span class="badge badge-pass">PASS</span><div><span class="label">Frequency accuracy</span><span class="note"> 0.000 Hz error on 50 Hz and 150 Hz tones. ISO 10816-3 allows ±1 Hz → 100× better.</span></div></div>
-      <div class="audit-row"><span class="badge badge-pass">PASS</span><div><span class="label">Resolution</span><span class="note"> 0.977 Hz/bin. ISO 13373-2 requires ≤1 Hz/bin for bearing fault detection → PASS.</span></div></div>
-      <div class="audit-row"><span class="badge badge-pass">PASS</span><div><span class="label">FFT algorithm</span><span class="note"> Cooley-Tukey radix-2 DIT — identical to MATLAB, scipy, every major tool. Zero math divergence.</span></div></div>
-      <div class="audit-row"><span class="badge badge-pass">PASS</span><div><span class="label">STFT method</span><span class="note"> Short-time Fourier with Hann window. ISO 13373-1 §6.3 compliant methodology.</span></div></div>
-      <div class="audit-row"><span class="badge badge-pass">PASS</span><div><span class="label">Self-verification</span><span class="note"> 4 synthetic tests on every boot. Professional instruments require calibration cert instead.</span></div></div>
-      <div class="audit-row"><span class="badge badge-pass">PASS</span><div><span class="label">Relative drift</span><span class="note"> A 6 dB rise at blade-pass IS reliably detected without absolute calibration. Drift is valid.</span></div></div>
+      <div class="audit-row"><span class="badge b-pass">PASS</span><div><span class="al">Frequency accuracy</span><span class="an">0.000 Hz error on 50 Hz and 150 Hz tones. ISO 10816-3 allows &pm;1 Hz &mdash; 100&times; better.</span></div></div>
+      <div class="audit-row"><span class="badge b-pass">PASS</span><div><span class="al">Resolution</span><span class="an">0.977 Hz/bin. ISO 13373-2 requires &le;1 Hz/bin for bearing fault detection &mdash; meets spec.</span></div></div>
+      <div class="audit-row"><span class="badge b-pass">PASS</span><div><span class="al">FFT algorithm</span><span class="an">Cooley-Tukey radix-2 DIT &mdash; identical to MATLAB, scipy, every major tool. Zero divergence.</span></div></div>
+      <div class="audit-row"><span class="badge b-pass">PASS</span><div><span class="al">STFT method</span><span class="an">Short-time Fourier with Hann window. ISO 13373-1 &sect;6.3 compliant methodology.</span></div></div>
+      <div class="audit-row"><span class="badge b-pass">PASS</span><div><span class="al">Self-verification</span><span class="an">4 synthetic tests on every boot. Professional instruments use a calibration certificate instead.</span></div></div>
+      <div class="audit-row"><span class="badge b-pass">PASS</span><div><span class="al">Relative drift</span><span class="an">A 6 dB rise at blade-pass IS reliably detected without absolute calibration.</span></div></div>
     </div>
 
-    <h4>What is missing vs a certified instrument</h4>
+    <h3>What is missing vs a certified instrument</h3>
     <div class="audit-grid">
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Calibration</span><span class="note"> No reference to 94 dB SPL @ 1 kHz. Our dB values are dBFS (relative to full scale), not dB SPL (physical pressure). You cannot compare readings between two different microphones.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Anti-alias filter</span><span class="note"> No hardware low-pass before sampling. If source has energy above Nyquist (4 kHz at 8 kHz SR), it aliases into the spectrum as ghost tones. Professional ADCs have hardware filters.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Flat sensor response</span><span class="note"> Consumer USB mic: ±10 dB variation across frequency. Professional IEPE sensor: ±0.5 dB. Our magnitude readings are unreliable for absolute comparison.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Physical units</span><span class="note"> ISO 20816 measures vibration velocity in mm/s RMS. We measure sound pressure acoustically. Different physical quantity → our readings are non-standard for machine condition reporting.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Uncertainty budget</span><span class="note"> No GUM-compliant uncertainty analysis. ISO 17025 accreditation (required for certified labs) demands documented measurement uncertainty for every parameter.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Cepstrum analysis</span><span class="note"> The standard algorithm for bearing fault detection is the cepstrum (IFFT of log spectrum). It isolates harmonic families automatically. Not implemented until Weekend 3.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Order tracking</span><span class="note"> No tachometer → can't track harmonics relative to actual shaft speed. Critical for VFD-controlled pumps where speed varies.</span></div></div>
-      <div class="audit-row"><span class="badge badge-fail">GAP</span><div><span class="label">Multi-channel</span><span class="note"> Professional: 3-axis accelerometer at each bearing housing. We: single acoustic source. Bearing location identification is impossible from one channel.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Calibration</span><span class="an">No 94 dB SPL @ 1 kHz reference. Our dB values are dBFS (relative to ADC full scale), not dB SPL. Cannot compare readings across different microphones.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Anti-alias filter</span><span class="an">No hardware low-pass before ADC. Energy above Nyquist (4 kHz) aliases into the band as ghost tones. Professional ADCs have hardware filters.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Flat sensor response</span><span class="an">Consumer USB mic: &pm;10 dB variation. Professional IEPE sensor: &pm;0.5 dB. Magnitude is unreliable for absolute comparison.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Physical units</span><span class="an">ISO 20816 measures vibration velocity in mm/s RMS. We measure sound pressure. Different physical quantity &mdash; non-standard for machine condition reporting.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Uncertainty budget</span><span class="an">No GUM-compliant uncertainty analysis. ISO 17025 accreditation demands documented uncertainty for every parameter.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Cepstrum analysis</span><span class="an">Standard algorithm for bearing faults is the cepstrum (IFFT of log spectrum). Isolates harmonic families automatically. Not implemented until Weekend 3.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Order tracking</span><span class="an">No tachometer &rarr; cannot track harmonics relative to actual shaft speed. Critical for VFD-controlled pumps.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Multi-channel</span><span class="an">Professional: 3-axis accelerometer at each bearing housing. Panaural: single acoustic source. Bearing location identification impossible from one channel.</span></div></div>
     </div>
 
-    <h4>Verdict — which market tier</h4>
-    <div class="verdict-tier">
-      <span class="tier-no">NO</span><span class="tier-desc"><strong>Tier 1 — Certified replacement:</strong> Missing calibration, physical units, ISO 17025. Cannot sign off on maintenance decisions.</span>
-      <span class="tier-no">NO</span><span class="tier-desc"><strong>Tier 2 — Regulated industrial:</strong> Missing uncertainty budget and sensor qualification. Cannot submit to a regulator.</span>
-      <span class="tier-partial">PARTIAL</span><span class="tier-desc"><strong>Tier 3 — Decision-support tool:</strong> Math correct, resolution correct. Sensor chain unvalidated. Usable by a trained engineer who understands the limitations.</span>
-      <span class="tier-yes">YES</span><span class="tier-desc"><strong>Tier 4 — Pre-screening / early warning:</strong> Relative spectral drift detection is valid without absolute calibration. Can flag "investigate this pump" reliably.</span>
-      <span class="tier-yes">YES</span><span class="tier-desc"><strong>Tier 5 — Education / research:</strong> Algorithm is identical to professional software. Perfect for learning, prototyping, and validating approaches before buying hardware.</span>
+    <h3>Market verdict</h3>
+    <div class="verdict-grid">
+      <span class="badge b-tier-n">NO</span>
+      <span class="verdict-desc"><strong>Tier 1 &mdash; Certified replacement.</strong> Missing calibration, physical units, ISO 17025. Cannot sign off on maintenance decisions.</span>
+      <span class="badge b-tier-n">NO</span>
+      <span class="verdict-desc"><strong>Tier 2 &mdash; Regulated industrial.</strong> Missing uncertainty budget and sensor qualification. Cannot submit to a regulator.</span>
+      <span class="badge b-tier-p">PARTIAL</span>
+      <span class="verdict-desc"><strong>Tier 3 &mdash; Decision-support.</strong> Math correct, resolution correct. Sensor chain unvalidated. Usable by a trained engineer who understands the limitations.</span>
+      <span class="badge b-tier-y">YES</span>
+      <span class="verdict-desc"><strong>Tier 4 &mdash; Pre-screening / early warning.</strong> Relative spectral drift detection is valid without absolute calibration. Can flag "investigate this pump."</span>
+      <span class="badge b-tier-y">YES</span>
+      <span class="verdict-desc"><strong>Tier 5 &mdash; Education / research.</strong> Algorithm is identical to professional software. Perfect for learning, prototyping, validating approaches.</span>
     </div>
 
-    <div class="analogy">
-      <strong>The key insight:</strong> Panaural cannot say "this pump vibrates at 2.3 mm/s RMS" (needs calibrated accelerometer).
-      It CAN reliably say "this pump is 6 dB louder at blade-pass than it was 2 weeks ago — investigate."
-      Relative change is valid. Absolute numbers are not. Keep that distinction and Panaural is genuinely useful.
+    <div class="callout amber" style="margin-top:14px">
+      <strong>The key distinction:</strong> Panaural cannot say "this pump vibrates at 2.3 mm/s RMS"
+      (needs a calibrated accelerometer). It CAN reliably say "this pump is 6 dB louder at blade-pass
+      than two weeks ago &mdash; investigate." Relative change is valid. Absolute numbers are not.
     </div>
   </div>
 </details>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  EDUCATION SECTION                                                     -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="card" style="border-color:#1e3a5f;margin-top:4px">
-  <h2 style="color:var(--blue)">📚 Learn — Everything you need to understand this tool</h2>
-  <p style="font-size:13px;color:var(--muted)">
-    Eight deep-dives. Expand any topic. Each one connects to what Panaural does and why.
-    Read one, skip one, come back later — they are independent.
-  </p>
-</div>
+<!-- ================================================================== -->
+<!--  EDUCATION                                                          -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Understanding the technology</div>
 
-<!-- EDU 1: What is sound -->
 <details>
   <summary>
-    <span style="font-size:16px">🔊</span>
-    <span>1 · What is sound — and how does a computer hear it?</span>
-    <span class="badge badge-edu" style="margin-left:8px">Foundation</span>
+    1 &mdash; What is sound and how does a computer hear it?
+    <span class="badge b-edu" style="margin-left:6px">Foundation</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>Sound is a pressure wave. When a pump's impeller spins, it pushes and pulls the air (or water)
-    around it millions of times per second, creating alternating high-pressure and low-pressure zones
-    that travel outward like ripples in a pond.</p>
+    <p>Sound is a pressure wave. When a pump impeller spins, it pushes and pulls surrounding air
+    millions of times per second, creating alternating high-pressure and low-pressure zones that
+    travel outward like ripples on water.</p>
 
-    <div class="analogy">
-      <strong>Analogy — the ripple pond:</strong> Drop a stone into still water. Ripples spread outward in rings.
-      The height of each ripple is amplitude (loudness). How many rings pass a fixed point per second is frequency (pitch).
-      Sound works the same way, but in air, in all directions, at 343 m/s.
+    <div class="callout">
+      <strong>The ripple analogy:</strong> Drop a stone into still water. Ripples spread outward.
+      The height of each ripple is amplitude (loudness). How many ripple peaks pass a fixed point
+      per second is frequency (pitch). Sound works the same way, but in air, at 343 m/s.
     </div>
 
-    <h4>From air pressure to numbers (how your microphone works)</h4>
+    <h3>From air pressure to numbers</h3>
     <ol>
-      <li><strong>Microphone diaphragm</strong> — a thin membrane that moves in and out as pressure waves hit it. Converts pressure → mechanical movement.</li>
-      <li><strong>Transducer</strong> — converts mechanical movement → electrical voltage. A condenser mic changes capacitance; a dynamic mic uses electromagnetic induction.</li>
-      <li><strong>ADC (Analogue-to-Digital Converter)</strong> — samples that voltage at regular intervals (e.g., 8,000 times per second) and rounds each sample to the nearest integer in a fixed range (e.g., -32,768 to +32,767 for 16-bit). This gives us a list of numbers — the WAV file.</li>
+      <li><strong>Microphone diaphragm</strong> &mdash; a thin membrane that moves in/out as pressure waves hit it. Converts pressure to mechanical motion.</li>
+      <li><strong>Transducer</strong> &mdash; converts motion to electrical voltage. Condenser mics change capacitance; dynamic mics use electromagnetic induction.</li>
+      <li><strong>ADC (Analogue-to-Digital Converter)</strong> &mdash; samples the voltage at fixed intervals and rounds each sample to the nearest integer. 8,000 times per second at 16-bit depth gives a list of numbers &mdash; that is the WAV file.</li>
     </ol>
 
-    <h4>Key parameters of a WAV file</h4>
-    <div class="infobox">
-Sample rate (SR):   8,000 Hz = 8,000 samples per second = snapshots of pressure<br>
-Bit depth:          16-bit   = 2¹⁶ = 65,536 possible pressure levels per sample<br>
-Duration:           samples ÷ SR = 24,000 ÷ 8,000 = 3.0 seconds<br>
-Nyquist limit:      SR ÷ 2 = 4,000 Hz = highest frequency we can capture</div>
+    <h3>Key parameters of the WAV file in this demo</h3>
+    <div class="mono-block"><span class="hi">Sample rate:</span>  8,000 Hz  = 8,000 snapshots of pressure per second
+<span class="hi">Bit depth:</span>    16-bit    = 2^16 = 65,536 possible pressure levels per sample
+<span class="hi">Duration:</span>     samples / SR = 24,000 / 8,000 = 3.0 seconds
+<span class="hi">Nyquist:</span>      SR / 2 = 4,000 Hz = highest frequency capturable without aliasing</div>
 
-    <p>A healthy pump at 50 Hz supply creates vibration at 50 Hz, 100 Hz, 150 Hz (harmonics), and
-    higher bearing frequencies. All of these get captured as pressure waves, picked up by the mic,
-    and stored as 8,000 numbers per second.</p>
+    <p>A pump at 50 Hz supply creates vibration at 50 Hz, 100 Hz, 150 Hz (harmonics), and higher
+    bearing frequencies. All are captured as pressure waves, converted to numbers, stored in the WAV.</p>
   </div>
 </details>
 
-<!-- EDU 2: Fourier's discovery -->
 <details>
   <summary>
-    <span style="font-size:16px">🌈</span>
-    <span>2 · Fourier's theorem — the idea that changed everything (1807)</span>
-    <span class="badge badge-edu" style="margin-left:8px">The Big Idea</span>
+    2 &mdash; Fourier's theorem &mdash; the idea that changed everything (1807)
+    <span class="badge b-edu" style="margin-left:6px">The Big Idea</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>In 1807, French mathematician Jean-Baptiste Joseph Fourier made a claim so bold that the
-    scientific establishment initially rejected it: <em>any periodic signal, no matter how complex,
-    can be expressed as a sum of simple sine and cosine waves at different frequencies and amplitudes.</em></p>
+    <p>In 1807, Jean-Baptiste Joseph Fourier proved: <em>any periodic signal, no matter how complex,
+    can be expressed as a sum of simple sine and cosine waves at different frequencies and amplitudes.</em>
+    The establishment initially rejected the claim. It was correct.</p>
 
-    <div class="analogy">
-      <strong>Analogy — the prism:</strong> White light looks like one thing. Pass it through a glass prism
-      and it splits into a rainbow — red, orange, yellow, green, blue, violet. The prism doesn't change the light;
+    <div class="callout">
+      <strong>The prism analogy:</strong> White light looks like one thing. A glass prism splits it into
+      a rainbow &mdash; red, orange, yellow, green, blue, violet. The prism does not change the light;
       it reveals that white light was always a mixture of those colours. The FFT is a mathematical prism.
-      A complex pump sound looks like one noisy signal. The FFT reveals it's always been a mixture of
-      discrete tones — 50 Hz shaft rotation, 200 Hz blade pass, 640 Hz bearing defect.
+      A complex pump sound looks like one noisy signal. The FFT reveals it was always a mixture of
+      discrete tones &mdash; 50 Hz shaft rotation, 200 Hz blade-pass, 640 Hz bearing defect.
     </div>
 
-    <h4>Why this matters for machines</h4>
-    <p>Different machine faults create different frequency signatures:</p>
+    <h3>Why this matters for machines</h3>
+    <p>Different faults produce different frequency signatures:</p>
     <ul>
-      <li><strong>Shaft imbalance</strong> → strong peak exactly at shaft rotation frequency (e.g., 25 Hz for 1500 RPM)</li>
-      <li><strong>Misalignment</strong> → strong peak at 2× shaft frequency (50 Hz)</li>
-      <li><strong>Blade wear</strong> → peak at blade-pass frequency (shaft × number of blades)</li>
-      <li><strong>Bearing defect</strong> → peaks at BPFI/BPFO/BSF/FTF frequencies (complex formula involving geometry)</li>
-      <li><strong>Cavitation</strong> → broadband noise rise above 2 kHz</li>
+      <li><strong>Shaft imbalance</strong> &mdash; strong peak at shaft rotation frequency (e.g., 25 Hz for 1500 RPM)</li>
+      <li><strong>Misalignment</strong> &mdash; strong peak at 2&times; shaft frequency</li>
+      <li><strong>Blade wear</strong> &mdash; peak at blade-pass frequency (shaft Hz &times; number of blades)</li>
+      <li><strong>Bearing defect</strong> &mdash; peaks at BPFI/BPFO/BSF/FTF (geometry-dependent formula)</li>
+      <li><strong>Cavitation</strong> &mdash; broadband noise rise above 1&ndash;2 kHz</li>
     </ul>
-    <p>Fourier's theorem says we can separate all of these from a single recording.
-    That's the entire premise of acoustic condition monitoring.</p>
+    <p>Fourier's theorem says all of these can be separated from a single recording. That is the
+    entire premise of acoustic condition monitoring.</p>
 
-    <div class="analogy">
-      <strong>Analogy — the orchestra:</strong> Imagine 50 musicians playing simultaneously.
-      To the human ear it sounds like "music." But a skilled conductor can close their eyes
-      and say "the third violin is slightly flat." Fourier analysis does this mathematically —
-      even when all machine faults play at once, it isolates each frequency contribution.
+    <div class="callout">
+      <strong>The orchestra analogy:</strong> Fifty musicians playing simultaneously sounds like "music."
+      A skilled conductor closes their eyes and says "the third violin is flat." Fourier analysis does
+      this mathematically &mdash; even when all machine faults play at once, it isolates each contribution.
     </div>
   </div>
 </details>
 
-<!-- EDU 3: The FFT algorithm -->
 <details>
   <summary>
-    <span style="font-size:16px">⚡</span>
-    <span>3 · The FFT algorithm — how the math actually works (Cooley-Tukey, 1965)</span>
-    <span class="badge badge-edu" style="margin-left:8px">Algorithm</span>
+    3 &mdash; The FFT algorithm &mdash; Cooley-Tukey, 1965
+    <span class="badge b-edu" style="margin-left:6px">Algorithm</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
     <p>The Fourier Transform turns N time samples into N frequency components.
     The naive Discrete Fourier Transform (DFT) computes every output by summing over every input:
-    that's N² multiplications — for 8,000 samples that's 64 million operations per frame.</p>
+    N&sup2; multiplications. For 8,000 samples that is 64 million operations per frame.</p>
 
-    <h4>The Cooley-Tukey insight (divide and conquer)</h4>
+    <h3>The Cooley-Tukey insight</h3>
     <p>In 1965, James Cooley and John Tukey (independently rediscovering Gauss's 1805 work) noticed:
-    you can split an N-point DFT into two N/2-point DFTs of the even and odd samples,
-    then combine with a "twiddle factor." Recurse until you have N 1-point DFTs (trivial).
-    Result: <strong>O(N log N)</strong> instead of O(N²).</p>
+    split an N-point DFT into two N/2-point DFTs of the even and odd samples, then combine with
+    a "twiddle factor." Recurse until you have N trivial 1-point DFTs.
+    Result: <strong>O(N log N)</strong> instead of O(N&sup2;).</p>
 
-    <div class="infobox">
-N = 8192 samples (our fftSize)
-Naive DFT:       8192² = 67,108,864 multiplications per frame
-Cooley-Tukey:    8192 × log₂(8192) = 8192 × 13 = 106,496 multiplications
-Speedup:         630× faster — the difference between 10 seconds and 16ms per frame</div>
+    <div class="mono-block">N = 8192 samples (our fftSize, next power of 2 above 8000)
 
-    <h4>The "butterfly" operation</h4>
-    <p>At each recursion level, Cooley-Tukey combines pairs of values with a complex exponential
-    (the twiddle factor). Each pair looks like a butterfly diagram — two inputs, two outputs — hence the name.
-    This code's <code>fftInPlace(re, im)</code> function implements this exactly:</p>
-    <div class="infobox">
-Step 1: Bit-reversal permutation (reorder inputs so recursion is in-place)<br>
-Step 2: For each stage (len=2,4,8,...,N):<br>
-        For each butterfly: compute twiddle factor, update pair of complex numbers<br>
-Result: Frequency domain — re[k] + i·im[k] is the complex amplitude at frequency k·SR/N</div>
+Naive DFT:       8192&sup2;             = 67,108,864 multiplications
+Cooley-Tukey:    8192 &times; log&sub2;(8192) =    106,496 multiplications
+<span class="ok">Speedup: 630&times; faster &mdash; difference between 10 seconds and 16 ms per frame</span></div>
 
-    <p>This is <strong>identical to what MATLAB's <code>fft()</code>, scipy's <code>scipy.fft.fft()</code>,
-    and every other major tool uses</strong>. No divergence in the math.</p>
+    <h3>The butterfly operation</h3>
+    <p>At each recursion level, pairs of values are combined with a complex exponential (twiddle factor).
+    Each pair looks like a butterfly diagram &mdash; two inputs, two outputs. The <code>fftInPlace(re, im)</code>
+    function in this page implements this exactly: bit-reversal permutation, then staged butterfly passes.
+    This is <strong>identical to what MATLAB's <code>fft()</code> and scipy's <code>fft.fft()</code> use</strong>.</p>
 
-    <h4>From FFT output to dB magnitude</h4>
-    <div class="infobox">
-magnitude[k] = √(re[k]² + im[k]²) / N     (normalise by frame size)<br>
-dB[k]        = 20 × log₁₀(magnitude[k])   (convert to decibels)<br>
-<br>
-We discard the second half (bins N/2+1 to N-1) — they're mirror images of bins 0 to N/2<br>
-(the spectrum is symmetric for real-valued signals).<br>
-Result: numBins = N/2 + 1 = 4097 bins, each representing SR/N = 0.977 Hz of bandwidth</div>
+    <h3>From FFT output to dB magnitude</h3>
+    <div class="mono-block">magnitude[k] = sqrt(re[k]&sup2; + im[k]&sup2;) / N   &larr; normalise by frame size
+dB[k]        = 20 &times; log&sub10;(magnitude[k])         &larr; convert to decibels
+
+Discard bins N/2+1 to N-1: mirror images for real-valued signals
+Result: numBins = N/2 + 1 = 4097 bins, each spanning SR/N = <span class="ok">0.977 Hz</span></div>
   </div>
 </details>
 
-<!-- EDU 4: Window functions -->
 <details>
   <summary>
-    <span style="font-size:16px">🪟</span>
-    <span>4 · Window functions — why we taper the signal before every FFT</span>
-    <span class="badge badge-edu" style="margin-left:8px">Signal Processing</span>
+    4 &mdash; Window functions &mdash; why we taper the signal before every FFT
+    <span class="badge b-edu" style="margin-left:6px">Signal Processing</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>The FFT assumes your signal is <em>periodic</em> — that it repeats forever. But your 8,000-sample
-    frame is a finite chunk cut from a continuous signal. At the edges of that chunk, the signal
-    almost certainly doesn't start and end at exactly the same value.</p>
+    <p>The FFT assumes the signal is periodic &mdash; that it repeats forever. Your 8,000-sample
+    frame is a finite chunk cut from a continuous signal. At the frame edges the signal almost
+    certainly does not start and end at the same value. This jump looks like broadband noise to
+    the FFT and smears energy from one frequency into all others. This is <strong>spectral leakage</strong>.</p>
 
-    <div class="analogy">
-      <strong>Analogy — the photo edge:</strong> Imagine filming a spinning fan. If you start recording
-      mid-rotation and stop mid-rotation, the jump between the last frame and the implied "first frame
-      of the next loop" creates a discontinuity. To the FFT, that discontinuity looks like broadband
-      noise — it smears energy from the fan's rotation frequency into every other frequency bin.
-      This is <strong>spectral leakage</strong>. A window function is like fading the film in and out
-      smoothly — no hard edge, no artificial jump.
+    <div class="callout">
+      <strong>The camera analogy:</strong> Filming a spinning fan: if recording starts and stops
+      mid-rotation, the jump between last and first frame creates an artificial discontinuity.
+      To the FFT, that discontinuity appears as broadband noise. A window function is like fading
+      the film in and out smoothly at both ends &mdash; no hard edge, no artificial jump.
     </div>
 
-    <h4>The four window types in Panaural</h4>
+    <h3>The four window types in Panaural</h3>
     <div class="win-grid">
       <div class="win-card">
-        <h5>Hann</h5>
-        <p><code>0.5·(1 − cos(2πn/N))</code></p>
-        <p>Smooth cosine taper to zero. Best all-round choice. Sidelobe suppression ~31.5 dB. <strong>Use this for pump monitoring.</strong></p>
+        <h4>Hann (default)</h4>
+        <p><code>0.5 &times; (1 &minus; cos(2&pi;n/N))</code></p>
+        <p>Smooth cosine taper to zero. Sidelobe suppression ~31.5 dB. Best all-round for tonal signals. <strong>Use for pump monitoring.</strong></p>
       </div>
       <div class="win-card">
-        <h5>Hamming</h5>
-        <p><code>0.54 − 0.46·cos(2πn/N)</code></p>
-        <p>Doesn't taper fully to zero. Better main-lobe narrowness. Good for speech, slightly worse for tonal signals.</p>
+        <h4>Hamming</h4>
+        <p><code>0.54 &minus; 0.46cos(2&pi;n/N)</code></p>
+        <p>Does not taper to zero. Slightly narrower main lobe than Hann. Better for speech; slightly worse for isolated tones.</p>
       </div>
       <div class="win-card">
-        <h5>Blackman</h5>
-        <p><code>0.42 − 0.5·cos + 0.08·cos(2θ)</code></p>
-        <p>Aggressive taper. Sidelobe ~58 dB. Best when a faint tone sits next to a much louder one (>40 dB dynamic difference). Wider main lobe = slightly coarser resolution.</p>
+        <h4>Blackman</h4>
+        <p><code>0.42 &minus; 0.5cos + 0.08cos(2&theta;)</code></p>
+        <p>Aggressive taper. Sidelobe ~58 dB. Best when a faint tone sits &gt;40 dB below a loud one. Wider main lobe = slightly coarser resolution.</p>
       </div>
       <div class="win-card">
-        <h5>Rectangular</h5>
+        <h4>Rectangular</h4>
         <p><code>w[n] = 1.0</code></p>
-        <p>No taper. Best time resolution, worst leakage. Correct choice for transient events (clicks, impacts). <strong>Do not use for continuous pump tones.</strong></p>
+        <p>No taper. Best time resolution, worst leakage. Correct for transient events (impacts). Do not use for continuous pump tones.</p>
       </div>
     </div>
-
-    <h4>Why Hann is the default</h4>
-    <p>For pump monitoring, the signal is <em>tonal</em> — discrete, persistent frequencies.
-    The Hann window keeps those tones sharp (narrow main lobe) while suppressing leakage
-    enough (31.5 dB) that a blade-pass tone won't mask a bearing sideband 3 Hz away.
-    It's the default in MATLAB's <code>spectrogram()</code> and scipy's <code>stft()</code>.</p>
   </div>
 </details>
 
-<!-- EDU 5: STFT -->
 <details>
   <summary>
-    <span style="font-size:16px">📊</span>
-    <span>5 · STFT — turning a 1D sound into a 2D map of time and frequency</span>
-    <span class="badge badge-edu" style="margin-left:8px">Core Method</span>
+    5 &mdash; STFT &mdash; turning a 1D signal into a 2D time-frequency map
+    <span class="badge b-edu" style="margin-left:6px">Core Method</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>The FFT tells you what frequencies exist across the <em>entire</em> recording.
-    But if a fault appears at t=45s and you're analysing 60s of audio, the FFT dilutes that
-    fault across the whole signal. You need to see <em>when</em> frequencies change, not just <em>if</em>.</p>
+    <p>A plain FFT tells you what frequencies exist across the <em>whole</em> recording but not
+    <em>when</em> they appear. The Short-Time Fourier Transform (STFT) solves this by sliding a
+    window through time, computing an FFT at each position, and stacking the results into a grid.</p>
 
-    <p>The Short-Time Fourier Transform (STFT) solves this by sliding a window through time,
-    computing an FFT at each position, and stacking the results into a 2D grid:</p>
+    <div class="mono-block">For each time position t (advancing by hopSize samples):
+  1. Extract frameSize samples starting at t
+  2. Apply window function (Hann)
+  3. Compute FFT  &rarr;  frequency spectrum for this moment in time
+  4. Stack it as one column in the 2D grid
 
-    <div class="infobox">
-For each time position t (step = hopSize samples apart):
-  1. Extract frameSize samples centred at t
-  2. Apply window function
-  3. Compute FFT → frequency spectrum for this moment
-  4. Stack it as a column in the 2D spectrogram
+Result:   rows    = frequency bins (0 Hz to Nyquist)
+          columns = time frames
+          colour  = magnitude in dB at that frequency at that time</div>
 
-Result: rows = frequency bins (0 → Nyquist)
-        columns = time frames
-        colour = magnitude at that frequency at that time</div>
+    <h3>The fundamental trade-off</h3>
+    <p>You cannot have perfect time resolution and perfect frequency resolution simultaneously.
+    This is not a software limitation &mdash; it is the time-frequency uncertainty principle.</p>
 
-    <h4>The fundamental trade-off (Heisenberg uncertainty in signal processing)</h4>
-    <p>You cannot have perfect time resolution AND perfect frequency resolution simultaneously.
-    This is not a software limitation — it's physics (the time-frequency uncertainty principle).</p>
-    <div class="infobox">
-Frequency resolution = SR / frameSize = 8000 / 8000 = 1.0 Hz/bin
-Time resolution      = frameSize / SR = 8000 / 8000 = 1.0 s/frame
+    <div class="mono-block">Frequency resolution = SR / frameSize = 8000 / 8000 = <span class="ok">1.0 Hz/bin</span>
+Time resolution      = frameSize / SR  = 8000 / 8000 = <span class="ok">1.0 s/frame</span>
 
 With 75% overlap (hopSize = 2000):
-  New frame every 2000/8000 = 0.25 s → smoother spectrogram, same frequency resolution
-  (Overlap adds smoothness but doesn't improve the fundamental trade-off)</div>
+  New frame every 2000/8000 = 0.25 s  &rarr;  smoother display
+  (overlap improves visual smoothness but does not change the fundamental resolution)</div>
 
-    <div class="analogy">
-      <strong>Analogy — the camera exposure:</strong> Long exposure = motion blur (poor time resolution)
-      but captures faint stars (good sensitivity/frequency resolution). Short exposure = freezes motion
-      (good time resolution) but misses dim stars (poor frequency resolution). Our 1-second frame is a
-      "long exposure" — excellent for seeing faint pump tones, but we won't know if a fault appeared
-      at exactly 14:22:31 vs 14:22:30.
+    <div class="callout">
+      <strong>The camera exposure analogy:</strong> Long exposure captures faint stars (high sensitivity)
+      but blurs moving objects (poor time resolution). Short exposure freezes motion but misses dim stars.
+      Our 1-second frame is a long exposure &mdash; excellent for faint pump tones, but we will not pinpoint
+      a fault to the exact second it appeared.
     </div>
 
-    <h4>What you see in the spectrogram</h4>
+    <h3>What to look for in the spectrogram</h3>
     <ul>
-      <li><strong>Horizontal bright line, constant position:</strong> Steady tone. Healthy pump producing this frequency consistently.</li>
-      <li><strong>Horizontal line that drifts upward over weeks:</strong> Blade-pass rising — impeller wear.</li>
-      <li><strong>New sidebands appearing beside a main tone:</strong> Bearing fault developing. The sideband spacing equals the bearing defect frequency.</li>
-      <li><strong>Broadband brightness rise above 1 kHz:</strong> Cavitation — bubbles collapsing create wideband noise.</li>
-      <li><strong>Diagonal stripe:</strong> A transient event — someone slammed a door, a pressure surge.</li>
+      <li><strong>Horizontal bright line, constant:</strong> Steady tone. Healthy machine component.</li>
+      <li><strong>Line that slowly drifts upward over days/weeks:</strong> Frequency rising &mdash; e.g., blade-pass rising as impeller wears.</li>
+      <li><strong>New faint lines appearing beside a main tone:</strong> Sidebands. Bearing fault developing.</li>
+      <li><strong>Broadband brightness above 1 kHz:</strong> Cavitation &mdash; bubble collapse creates wideband noise.</li>
+      <li><strong>Diagonal stripe:</strong> Transient &mdash; pressure surge, door slam, external impact.</li>
     </ul>
   </div>
 </details>
 
-<!-- EDU 6: What is dB -->
 <details>
   <summary>
-    <span style="font-size:16px">📏</span>
-    <span>6 · Decibels (dB) — why sound is measured on a logarithmic scale</span>
-    <span class="badge badge-edu" style="margin-left:8px">Units</span>
+    6 &mdash; Decibels &mdash; why sound uses a logarithmic scale
+    <span class="badge b-edu" style="margin-left:6px">Units</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>Human hearing spans a pressure range of roughly 20 μPa (faintest audible sound)
-    to 20 Pa (pain threshold) — a factor of one million. If we used a linear scale,
-    the faintest pump bearing sideband (at, say, 0.001 Pa) would be invisible next to
-    the main 50 Hz shaft tone (at 0.1 Pa). The logarithmic decibel scale compresses this range.</p>
+    <p>Human hearing spans pressure from 20 &micro;Pa (faintest audible) to 20 Pa (pain threshold)
+    &mdash; a ratio of one million. A linear scale would make faint bearing sidebands invisible
+    beside the dominant shaft tone. The decibel compresses this range logarithmically.</p>
 
-    <div class="infobox">
-dB = 20 × log₁₀(amplitude / reference)
+    <div class="mono-block">dB = 20 &times; log&sub10;(amplitude / reference)
 
-In Panaural: reference = full-scale digital (the maximum value the ADC can produce)
-So: -20 dB = amplitude is 1/10th of full scale
-    -40 dB = amplitude is 1/100th of full scale
-    -60 dB = amplitude is 1/1000th of full scale
-    -80 dB = amplitude is 1/10,000th of full scale (typical noise floor)</div>
+In Panaural: reference = ADC full scale (maximum recordable value)
 
-    <h4>Key dB facts for pump monitoring</h4>
+ 0 dB = full scale  (maximum)
+-20 dB = 1/10 of full scale
+-40 dB = 1/100 of full scale
+-60 dB = 1/1,000 of full scale
+-80 dB = 1/10,000 of full scale  (typical noise floor for 16-bit audio)</div>
+
+    <h3>Key facts for pump monitoring</h3>
     <ul>
-      <li><strong>+6 dB</strong> ≈ signal doubled in amplitude. ISO 20816-3 flags Class C→D transition at +6 dB above baseline → this is Panaural's default alert threshold.</li>
-      <li><strong>−3 dB</strong> = amplitude at 70.7% of reference (half power). "Half power point" in filter design.</li>
-      <li><strong>The colour scale</strong> in this spectrogram maps dB floor (default −80) → dB ceiling (default −10) to black → white. Adjust the ceiling down until bright colours appear on your signal.</li>
-      <li><strong>Our dB values are dBFS</strong> (Full Scale), not dB SPL (Sound Pressure Level). They're relative to the ADC maximum, not to the physical 20 μPa reference. You cannot compare our readings to a calibrated sound level meter without calibration.</li>
+      <li><strong>+6 dB</strong> = amplitude doubled. ISO 20816-3 flags Class C&rarr;D transition at +6 dB above baseline. This is Panaural's default alert threshold.</li>
+      <li><strong>Our values are dBFS</strong> (Full Scale), not dB SPL (Sound Pressure Level). Cannot compare to a calibrated sound meter without a calibration step.</li>
+      <li><strong>The colour scale</strong> maps dB floor (default &minus;80) to dB ceiling (default &minus;10). If the spectrogram looks dark, lower the ceiling control.</li>
     </ul>
 
-    <div class="analogy">
-      <strong>Analogy — the earthquake Richter scale:</strong> A magnitude 7 earthquake is not 2× stronger
-      than magnitude 6 — it's 10× stronger (log₁₀ scale). Similarly, a bearing sideband at −55 dB is
-      not slightly quieter than the −25 dB main tone — it's 1,000× quieter in amplitude (30 dB difference,
-      10^(30/20) ≈ 32×). Without the log scale you would never see the sideband.
+    <div class="callout">
+      <strong>The earthquake analogy:</strong> Richter magnitude 7 is not twice as strong as magnitude 6
+      &mdash; it is 10&times; stronger (log scale). A bearing sideband at &minus;55 dB is not slightly quieter
+      than a &minus;25 dB main tone &mdash; it is 1,000&times; quieter in amplitude. Without the log scale
+      the sideband would be invisible.
     </div>
   </div>
 </details>
 
-<!-- EDU 7: Nyquist and aliasing -->
 <details>
   <summary>
-    <span style="font-size:16px">👻</span>
-    <span>7 · Nyquist theorem and aliasing — why ghost frequencies appear (and how to prevent them)</span>
-    <span class="badge badge-edu" style="margin-left:8px">Sampling Theory</span>
+    7 &mdash; Nyquist theorem and aliasing &mdash; why ghost frequencies appear
+    <span class="badge b-edu" style="margin-left:6px">Sampling Theory</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>The Nyquist-Shannon sampling theorem (1949) states: to accurately represent a signal
-    containing frequencies up to F Hz, you must sample at a rate of at least 2F samples per second.</p>
+    <p>The Nyquist-Shannon sampling theorem states: to represent a signal containing frequencies
+    up to F&thinsp;Hz, you must sample at least 2F times per second. Violate this and you get aliasing
+    &mdash; frequencies that appear to be at the wrong location in the spectrum.</p>
 
-    <div class="analogy">
-      <strong>Analogy — the wagon wheel effect in old films:</strong> A wagon wheel spinning at 12 revolutions
-      per second, filmed at 24 frames per second (2× the rotation speed — exactly at Nyquist) looks like
-      it's standing still. Filmed at 20 fps (below Nyquist), the wheel appears to spin backwards.
-      That backwards rotation is an <strong>alias</strong> — a ghost frequency that doesn't exist in reality,
-      created by sampling too slowly. The same happens in audio: a 5,000 Hz tone recorded at 8,000 Hz SR
-      appears as a 3,000 Hz ghost (8000 − 5000 = 3000 Hz). You'd think a bearing fault is at 3 kHz
-      when it's actually at 5 kHz.
+    <div class="callout">
+      <strong>The wagon wheel effect:</strong> A wagon wheel spinning at 12 revolutions per second,
+      filmed at 20 frames per second (below Nyquist for the rotation), appears to spin
+      <em>backwards</em>. That backwards rotation is an alias &mdash; a ghost frequency that does not
+      exist in reality. In audio: a 5,000 Hz tone recorded at 8,000 Hz sample rate appears
+      as a ghost at 3,000 Hz (8000 &minus; 5000). You would think a bearing fault is at 3 kHz
+      when it is actually at 5 kHz.
     </div>
 
-    <h4>In Panaural</h4>
-    <div class="infobox">
-Sample rate: 8,000 Hz
-Nyquist:     4,000 Hz  ← highest frequency we can represent without aliasing
-Coverage:    Most pump fundamentals (10–500 Hz) → captured correctly
-             Bearing defects can reach 1,000–2,000 Hz → still captured correctly
-             Cavitation (above 2,000 Hz) → partially captured, some aliased
+    <div class="mono-block">Sample rate: 8,000 Hz
+Nyquist:     4,000 Hz  &larr; highest frequency representable without aliasing
 
-The validate.ts module refuses to start if: sampleRate < 2 × max frequency of interest</div>
+Pump fundamentals (10&ndash;500 Hz):      <span class="ok">captured correctly</span>
+Bearing defects (up to ~2,000 Hz):       <span class="ok">captured correctly</span>
+Cavitation (above 2,000 Hz):             <span class="ok">partially captured</span> (some aliasing possible near Nyquist)
 
-    <h4>Anti-aliasing filters</h4>
-    <p>Professional instruments include a hardware low-pass filter that removes all frequencies
-    above Nyquist <em>before</em> the ADC samples. Without this, any high-frequency energy
-    (fan harmonics, electrical noise, ultrasound) aliases into the measurement band.
-    Panaural currently has no anti-aliasing filter — it relies on the source having minimal
-    energy above 4 kHz, which is usually true for pipe-mounted acoustic measurements
-    but is not guaranteed.</p>
+validate.ts refuses to start if: sampleRate &lt; 2 &times; max frequency of interest</div>
+
+    <h3>Anti-aliasing filters</h3>
+    <p>Professional instruments include a hardware low-pass filter that removes all frequencies above
+    Nyquist <em>before</em> the ADC samples. Without this, any high-frequency energy (fan harmonics,
+    electrical noise, ultrasound) aliases into the measurement band. Panaural currently has no hardware
+    anti-aliasing filter &mdash; this is an open gap documented in the audit above.</p>
   </div>
 </details>
 
-<!-- EDU 8: Sidebands and bearing faults -->
 <details>
   <summary>
-    <span style="font-size:16px">⚙️</span>
-    <span>8 · Sidebands and bearing fault frequencies — what Panaural is actually looking for</span>
-    <span class="badge badge-edu" style="margin-left:8px">Application</span>
+    8 &mdash; Sidebands and bearing fault frequencies &mdash; what Panaural looks for
+    <span class="badge b-edu" style="margin-left:6px">Application</span>
+    <span class="toggle"></span>
   </summary>
   <div class="acc-body">
-    <p>This is the "so what?" that connects all the signal processing to a real machine fault.</p>
+    <h3>A healthy bearing</h3>
+    <p>A rolling-element bearing produces tones at the shaft rotation frequency and its harmonics.
+    A pump with 4 impeller blades at 25 Hz shaft speed produces blade-pass at 25 &times; 4 = 100 Hz.
+    In the spectrogram: one steady bright line at 100 Hz, constant brightness over time.</p>
 
-    <h4>How a healthy bearing sounds</h4>
-    <p>A rolling element bearing produces a pure tone at the shaft rotation frequency and its harmonics.
-    If a pump has 4 impeller blades spinning at 25 Hz (1500 RPM), the blade-pass frequency is
-    25 × 4 = 100 Hz. In the spectrogram: one bright line at 100 Hz, steady, constant brightness.</p>
+    <h3>What happens when a bearing fails</h3>
+    <p>A defect (spall, pit, crack) on a bearing race creates a small impact each time a rolling
+    element passes over it. That impact repeats at the bearing defect frequency, which
+    <em>amplitude-modulates</em> the main tone. Modulation creates sidebands &mdash; extra frequency
+    components above and below the main tone, spaced by the defect frequency.</p>
 
-    <h4>What happens when a bearing starts to fail</h4>
-    <p>A small defect (spall, pit, crack) on the inner or outer race creates a tiny impact each time
-    a rolling element passes over it. That impact repeats at a specific rate — the bearing defect frequency —
-    which depends on bearing geometry. This periodic impact <em>amplitude-modulates</em> the main tone.</p>
-
-    <div class="analogy">
-      <strong>Analogy — the drummer with a limp:</strong> A healthy drummer hits every beat exactly.
-      A drummer with a sore knee has a slight hesitation every few beats — the rhythm is no longer
-      perfectly steady. In frequency terms, that irregularity creates sidebands (extra frequencies)
-      above and below the main beat frequency. A bearing defect does the same to the shaft tone:
-      the main tone stays, but sidebands appear on both sides at the defect frequency distance.
+    <div class="callout">
+      <strong>The drummer analogy:</strong> A healthy drummer hits every beat exactly. A drummer with
+      a sore knee has a slight hesitation every few beats &mdash; the rhythm is no longer perfectly
+      steady. In frequency terms, that irregularity creates sidebands above and below the beat
+      frequency. A bearing defect does the same to the main shaft tone.
     </div>
 
-    <h4>Bearing fault frequencies (BPFI/BPFO)</h4>
-    <div class="infobox">
-Given: shaft speed N Hz, n rolling elements, contact angle α, pitch diameter D, ball diameter d
+    <h3>Bearing fault frequency formulas</h3>
+    <div class="mono-block">Given: shaft speed N Hz, n rolling elements, contact angle &alpha;, pitch diameter D, ball diameter d
 
-BPFI (inner race) = (n/2) × N × (1 + d/D × cos α)   ← most common early fault
-BPFO (outer race) = (n/2) × N × (1 − d/D × cos α)
-BSF  (ball spin)  = (D/2d) × N × (1 − (d/D × cos α)²)
-FTF  (cage)       = (1/2) × N × (1 − d/D × cos α)
+BPFI (inner race) = (n/2) &times; N &times; (1 + d/D &times; cos&alpha;)   &larr; most common early fault
+BPFO (outer race) = (n/2) &times; N &times; (1 &minus; d/D &times; cos&alpha;)
+BSF  (ball spin)  = (D/2d) &times; N &times; (1 &minus; (d/D &times; cos&alpha;)&sup2;)
+FTF  (cage)       = (1/2) &times; N &times; (1 &minus; d/D &times; cos&alpha;)
 
-Example — typical HVAC pump (4 balls, shaft 25 Hz, D/d ≈ 3, α ≈ 15°):
-  BPFO ≈ 25 × 4/2 × (1 − 0.32) ≈ 34 Hz
-  Sidebands appear at: 100 ± 34, 100 ± 68, 100 ± 102 Hz...</div>
+Example &mdash; HVAC pump (4 balls, 25 Hz shaft, D/d &asymp; 3, &alpha; &asymp; 15&deg;):
+  BPFO &asymp; 34 Hz
+  Sidebands appear at: 100 &plusmn; 34, 100 &plusmn; 68, 100 &plusmn; 102 Hz...</div>
 
-    <h4>Why 0.98 Hz/bin resolution is critical</h4>
-    <p>BPFO sideband at 34 Hz sits 34 Hz from the blade-pass at 100 Hz.
-    At 7.8 Hz/bin (old default), the sideband is only 4 bins away from the main tone
-    — visible but merges with leakage. If the defect frequency is 3 Hz (slow shaft, many balls),
-    it's completely invisible. At 0.98 Hz/bin, even 1 Hz sidebands are distinct bins.
-    <strong>This is why the resolution fix in v1.1.0 was not cosmetic — it was fundamental.</strong></p>
+    <h3>Why 0.98 Hz/bin resolution is critical</h3>
+    <p>If the defect frequency is 3 Hz (slow shaft, many balls), the sidebands are 3 Hz from the
+    main tone. At 7.8 Hz/bin (the old default), the sideband falls inside the same bin as the
+    main tone &mdash; invisible. At 0.98 Hz/bin, it is three bins away &mdash; clearly distinct.
+    The resolution fix in v1.1.0 was not cosmetic. It was the difference between detecting a
+    developing fault and missing it entirely.</p>
   </div>
 </details>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  LOAD AUDIO                                                            -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<div class="card" style="margin-top:4px">
-  <h2>1 · Load Audio File</h2>
-  <label>Select a PCM WAV file — 16-bit, mono or stereo (stereo auto-mixed to mono)</label>
+<!-- ================================================================== -->
+<!--  LOAD AUDIO                                                         -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Instrument</div>
+
+<div class="card">
+  <h2>Load Audio</h2>
+  <label>PCM WAV file &mdash; 16-bit, mono or stereo (stereo mixed to mono automatically)</label>
   <input type="file" id="fileInput" accept=".wav" />
-
   <div class="controls">
     <div class="control">
       <label>Window function</label>
       <select id="windowType">
         <option value="hann" selected>Hann (recommended)</option>
         <option value="hamming">Hamming</option>
-        <option value="blackman">Blackman (best sidelobe)</option>
-        <option value="rect">Rectangular (no window)</option>
+        <option value="blackman">Blackman</option>
+        <option value="rect">Rectangular</option>
       </select>
-      <span class="hint">Hann: best for pump tones. Blackman: faint tone next to loud one.</span>
+      <span class="hint">Hann: pump tones. Blackman: faint tone beside loud one.</span>
     </div>
     <div class="control">
       <label>Frame size (samples)</label>
       <input type="number" id="frameSize" value="8000" min="64" max="65536" step="1000" />
-      <span class="hint">= 1 s at 8 kHz. Controls freq resolution: SR÷frameSize Hz/bin.</span>
+      <span class="hint">Resolution = SR / frameSize Hz/bin. 8000 = 1 Hz/bin at 8 kHz.</span>
     </div>
     <div class="control">
       <label>Hop size (samples)</label>
@@ -637,415 +708,446 @@ Example — typical HVAC pump (4 balls, shaft 25 Hz, D/d ≈ 3, α ≈ 15°):
       <span class="hint">25% of frame = 75% overlap. Standard for smooth display.</span>
     </div>
     <div class="control">
-      <label>dB floor (black)</label>
+      <label>dB floor</label>
       <input type="number" id="dbFloor" value="-80" min="-200" max="-10" step="10" />
-      <span class="hint">Quiet cutoff. −80 dB is standard noise floor for 16-bit audio.</span>
+      <span class="hint">Black level. -80 dB = standard 16-bit noise floor.</span>
     </div>
     <div class="control">
-      <label>dB ceiling (white)</label>
+      <label>dB ceiling</label>
       <input type="number" id="dbCeil" value="-10" min="-100" max="0" step="5" />
-      <span class="hint">Loud cutoff. Lower this if spectrogram looks dark.</span>
+      <span class="hint">White level. Lower if the spectrogram looks too dark.</span>
     </div>
     <div class="control">
       <label>Max frequency (Hz)</label>
       <input type="number" id="maxFreq" value="500" min="50" max="24000" step="50" />
-      <span class="hint">Zoom Y-axis. 500 Hz covers all pump fundamentals and harmonics.</span>
+      <span class="hint">Y-axis zoom. 500 Hz covers all pump fundamentals.</span>
     </div>
   </div>
-  <div id="status">Ready — select a WAV file above to render its spectrogram.</div>
+  <div id="status">Ready &mdash; select a WAV file above.</div>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  SPECTROGRAM                                                           -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ================================================================== -->
+<!--  SPECTROGRAM                                                        -->
+<!-- ================================================================== -->
 <div class="card" id="spectrogramCard" style="display:none">
-  <h2>2 · Spectrogram</h2>
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
-    <span id="fileInfo" style="font-size:12px;color:var(--muted);font-family:monospace"></span>
-    <span id="resInfo" style="font-size:12px;color:var(--green);font-family:monospace"></span>
+  <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px;flex-wrap:wrap;gap:8px">
+    <h2 style="margin:0">Spectrogram</h2>
+    <span id="resInfo" style="font-size:11px;color:var(--green);font-family:monospace"></span>
   </div>
+  <span id="fileInfo" style="font-size:11px;color:var(--muted);font-family:monospace;display:block;margin-bottom:10px"></span>
   <canvas id="spectrogram"></canvas>
   <div style="margin-top:8px">
-    <canvas id="colorbar" height="18"></canvas>
+    <canvas id="colorbar" height="16"></canvas>
     <div class="colorbar-labels">
       <span id="cbMin"></span>
-      <span style="color:var(--muted)">← Quiet (cold) ················ Loud (hot) →</span>
+      <span>quiet (cold) &mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash;&mdash; loud (hot)</span>
       <span id="cbMax"></span>
     </div>
   </div>
   <div class="peaks-row" id="peaksRow" style="display:none">
-    <span style="font-size:12px;color:var(--muted);align-self:center">Detected peaks:</span>
+    <span style="font-size:11px;color:var(--muted);align-self:center">Peaks:</span>
   </div>
-  <p style="font-size:11px;color:var(--muted);margin-top:8px">
-    Hover for frequency · time · level. Yellow dashed lines = auto-detected peaks.
-    Horizontal bright lines = steady tones (healthy). Drifting lines = developing faults.
+  <p style="margin-top:10px;font-size:11px;color:var(--muted)">
+    Hover for frequency, time, and level. Yellow dashed lines are auto-detected peaks.
+    Horizontal bright lines are steady tones. Drifting lines indicate developing faults.
   </p>
 </div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  SELF-TEST                                                             -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ================================================================== -->
+<!--  SELF-TEST                                                          -->
+<!-- ================================================================== -->
 <div class="card" id="selfTestCard">
-  <h2>3 · Self-Test Results</h2>
+  <h2>Self-Test Results</h2>
   <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
-    Four synthetic tests run automatically on every page load. No microphone required.
-    They verify the STFT mathematics is correct before any real audio is processed.
-    <strong>All four must pass before trusting Panaural with real data.</strong>
+    Four synthetic tests run on every page load. No microphone required.
+    Verify the STFT mathematics before trusting Panaural with real data.
+    All four must pass.
   </p>
   <table>
-    <thead><tr><th>Test</th><th>Result</th><th>What it verifies</th><th>Actual output</th></tr></thead>
+    <thead>
+      <tr>
+        <th>Test</th>
+        <th>Result</th>
+        <th>What it verifies</th>
+        <th>Actual output</th>
+      </tr>
+    </thead>
     <tbody id="selfTestBody"></tbody>
   </table>
 
-  <details style="margin-top:14px;border-color:var(--bd)">
-    <summary style="background:var(--s2)">
-      <span style="font-size:14px">🧪</span>
-      <span>How are the self-tests designed? (click to see the synthetic signal methodology)</span>
+  <details style="margin-top:14px">
+    <summary style="font-size:13px">
+      Synthetic signal methodology &mdash; how each test is designed
+      <span class="toggle"></span>
     </summary>
     <div class="acc-body">
-      <h4>Test 1 — Pure sine detection</h4>
-      <p>Generate a mathematically perfect 50 Hz sine wave at 8,000 Hz sample rate for 1 second.
-      Run STFT with frameSize=8000 (fftSize=8192). Check that the peak bin is within ±3 bins of
-      the expected bin (50 × 8192 / 8000 = bin 51). This confirms the FFT algorithm produces
-      the correct frequency bins for a known input.</p>
+      <h4>Test 1 &mdash; Pure sine detection</h4>
+      <p>Generate a mathematically perfect 50 Hz sine at 8,000 Hz for 1 second. Run STFT with
+      frameSize=8000 (fftSize=8192). The peak bin must be within &pm;3 bins of bin&nbsp;51
+      (50 &times; 8192 / 8000 = 51.2). Confirms the FFT algorithm places energy at the correct bin.</p>
 
-      <h4>Test 2 — Noise robustness (SNR ≈ 10 dB)</h4>
-      <p>Mix the 50 Hz sine with Gaussian noise (Box-Muller transform, std=0.224, SNR≈10 dB).
-      The sine still has 10 dB more power than the noise floor — a realistic SNR for a microphone
-      pressed against a pipe with ambient background noise. If the peak bin still detects at 50 Hz,
-      the algorithm is robust to typical recording conditions.</p>
+      <h4>Test 2 &mdash; Noise robustness (SNR &asymp; 10 dB)</h4>
+      <p>Mix the 50 Hz sine with Gaussian noise (Box-Muller, std=0.224, SNR&asymp;10 dB &mdash;
+      realistic for a microphone on a pipe with ambient background). The peak must still detect
+      at 50 Hz, confirming the algorithm is robust to real-world recording conditions.</p>
 
-      <h4>Test 3 — Silence (no false alarms)</h4>
-      <p>Feed all-zero samples. No bin should exceed −80 dB. If it does, the FFT has numerical
-      noise (floating point accumulation errors). −240 dB (observed) means the implementation
-      is numerically clean.</p>
+      <h4>Test 3 &mdash; Silence</h4>
+      <p>Feed all-zero samples. No bin may exceed &minus;80 dB. If it does, floating-point
+      accumulation in the FFT introduces numerical noise that would trigger false alarms on quiet signals.
+      The &minus;240 dB observed means the implementation is numerically clean.</p>
 
-      <h4>Test 4 — Clipping detection</h4>
-      <p>Generate a sine at 2× amplitude, then hard-clip at ±0.9. Over 71% of samples
-      will be at the clipping boundary. The test checks this is detected and warned.
-      Clipping (ADC saturation) distorts the entire spectrum — harmonics appear at every
-      frequency, masking real faults. The system must warn, not silently compute wrong results.</p>
+      <h4>Test 4 &mdash; Clipping detection</h4>
+      <p>Generate a sine at 2&times; amplitude, then hard-clip at &pm;0.9 to simulate ADC saturation.
+      Over 71% of samples will be at the clip boundary. The test checks this is flagged.
+      Clipping introduces harmonic distortion across the entire spectrum &mdash; the system must
+      warn rather than silently report a distorted result as real fault peaks.</p>
     </div>
   </details>
 </div>
 
-<!-- Hover tooltip -->
 <div id="tooltip"></div>
 
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
-<!--  JAVASCRIPT                                                            -->
-<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- ================================================================== -->
+<!--  JAVASCRIPT                                                         -->
+<!-- ================================================================== -->
 <script>
 'use strict';
 
-// ── Inferno colormap ──────────────────────────────────────────────────────────
-const INFERNO=[
+// Inferno colormap anchor points (black -> purple -> red -> orange -> white)
+const INFERNO = [
   [0,0,4],[40,11,84],[101,21,110],[159,42,99],
   [212,72,66],[245,125,21],[250,193,39],[252,255,164],[252,255,252]
 ];
-function infernoRGB(t){
-  t=Math.max(0,Math.min(1,t));
-  const n=INFERNO.length-1,i=Math.min(Math.floor(t*n),n-1),f=t*n-i;
-  const a=INFERNO[i],b=INFERNO[i+1];
-  return[Math.round(a[0]+f*(b[0]-a[0])),Math.round(a[1]+f*(b[1]-a[1])),Math.round(a[2]+f*(b[2]-a[2]))];
+function infernoRGB(t) {
+  t = Math.max(0, Math.min(1, t));
+  const n = INFERNO.length - 1;
+  const i = Math.min(Math.floor(t * n), n - 1);
+  const f = t * n - i;
+  const a = INFERNO[i], b = INFERNO[i + 1];
+  return [
+    Math.round(a[0] + f * (b[0] - a[0])),
+    Math.round(a[1] + f * (b[1] - a[1])),
+    Math.round(a[2] + f * (b[2] - a[2]))
+  ];
 }
 
-// ── Tick generator ────────────────────────────────────────────────────────────
-function niceTicks(lo,hi,n=7){
-  const r=hi-lo; if(r<=0) return[lo];
-  const raw=r/n,mag=Math.pow(10,Math.floor(Math.log10(raw)));
-  let step=mag;
-  for(const s of[1,2,5,10]) if(mag*s>=raw){step=mag*s;break;}
-  const t=[];
-  for(let v=Math.ceil(lo/step)*step;v<=hi+step*.01;v+=step) t.push(parseFloat(v.toFixed(10)));
+function niceTicks(lo, hi, n = 7) {
+  const r = hi - lo; if (r <= 0) return [lo];
+  const raw = r / n, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+  let step = mag;
+  for (const s of [1, 2, 5, 10]) if (mag * s >= raw) { step = mag * s; break; }
+  const t = [];
+  for (let v = Math.ceil(lo / step) * step; v <= hi + step * 0.01; v += step)
+    t.push(parseFloat(v.toFixed(10)));
   return t;
 }
 
-// ── WAV parser ────────────────────────────────────────────────────────────────
-function parseWAV(buf){
-  const v=new DataView(buf);
-  const rs=o=>String.fromCharCode(v.getUint8(o),v.getUint8(o+1),v.getUint8(o+2),v.getUint8(o+3));
-  if(rs(0)!=='RIFF') throw new Error('Not a RIFF file.');
-  if(rs(8)!=='WAVE') throw new Error('Not a WAVE file.');
-  let off=12,fmt=-1,ch=-1,sr=-1,bps=-1,ds=-1,dl=-1;
-  while(off<buf.byteLength-8){
-    const id=rs(off),sz=v.getUint32(off+4,true);
-    if(id==='fmt '){fmt=v.getUint16(off+8,true);ch=v.getUint16(off+10,true);sr=v.getUint32(off+12,true);bps=v.getUint16(off+22,true);}
-    else if(id==='data'){ds=off+8;dl=sz;}
-    off+=8+sz+(sz%2?1:0);
+function parseWAV(buf) {
+  const v = new DataView(buf);
+  const rs = o => String.fromCharCode(v.getUint8(o), v.getUint8(o+1), v.getUint8(o+2), v.getUint8(o+3));
+  if (rs(0) !== 'RIFF') throw new Error('Not a RIFF file.');
+  if (rs(8) !== 'WAVE')  throw new Error('Not a WAVE file.');
+  let off = 12, fmt = -1, ch = -1, sr = -1, bps = -1, ds = -1, dl = -1;
+  while (off < buf.byteLength - 8) {
+    const id = rs(off), sz = v.getUint32(off + 4, true);
+    if (id === 'fmt ') { fmt = v.getUint16(off+8,true); ch = v.getUint16(off+10,true); sr = v.getUint32(off+12,true); bps = v.getUint16(off+22,true); }
+    else if (id === 'data') { ds = off + 8; dl = sz; }
+    off += 8 + sz + (sz % 2 ? 1 : 0);
   }
-  if(fmt!==1) throw new Error(`Only PCM WAV supported (got format ${fmt}).`);
-  if(bps!==16) throw new Error(`Only 16-bit PCM supported (got ${bps}-bit).`);
-  if(ds<0) throw new Error('No audio data chunk found.');
-  const n=Math.floor(dl/(2*ch)),smp=new Float64Array(n);
-  for(let i=0;i<n;i++){let m=0;for(let c=0;c<ch;c++) m+=v.getInt16(ds+(i*ch+c)*2,true)/32768;smp[i]=m/ch;}
-  return{samples:smp,sampleRate:sr,channels:ch};
+  if (fmt !== 1)  throw new Error(`Only PCM WAV supported (got format ${fmt}).`);
+  if (bps !== 16) throw new Error(`Only 16-bit PCM supported (got ${bps}-bit).`);
+  if (ds < 0)     throw new Error('No audio data chunk found.');
+  const n = Math.floor(dl / (2 * ch)), smp = new Float64Array(n);
+  for (let i = 0; i < n; i++) {
+    let m = 0;
+    for (let c = 0; c < ch; c++) m += v.getInt16(ds + (i * ch + c) * 2, true) / 32768;
+    smp[i] = m / ch;
+  }
+  return { samples: smp, sampleRate: sr, channels: ch };
 }
 
-// ── Window functions ──────────────────────────────────────────────────────────
-function applyWindow(s,type){
-  const N=s.length,o=new Float64Array(N),P=2*Math.PI;
-  for(let n=0;n<N;n++){
+function applyWindow(s, type) {
+  const N = s.length, o = new Float64Array(N), P = 2 * Math.PI;
+  for (let n = 0; n < N; n++) {
     let w;
-    if(type==='hann') w=.5*(1-Math.cos(P*n/(N-1)));
-    else if(type==='hamming') w=.54-.46*Math.cos(P*n/(N-1));
-    else if(type==='blackman') w=.42-.5*Math.cos(P*n/(N-1))+.08*Math.cos(4*Math.PI*n/(N-1));
-    else w=1;
-    o[n]=s[n]*w;
+    if      (type === 'hann')    w = 0.5 * (1 - Math.cos(P * n / (N - 1)));
+    else if (type === 'hamming') w = 0.54 - 0.46 * Math.cos(P * n / (N - 1));
+    else if (type === 'blackman') w = 0.42 - 0.5 * Math.cos(P * n / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * n / (N - 1));
+    else w = 1;
+    o[n] = s[n] * w;
   }
   return o;
 }
 
-// ── FFT (Cooley-Tukey radix-2 DIT) ───────────────────────────────────────────
-function fftInPlace(re,im){
-  const N=re.length;let j=0;
-  for(let i=1;i<N;i++){let b=N>>1;for(;j&b;b>>=1)j^=b;j^=b;if(i<j){[re[i],re[j]]=[re[j],re[i]];[im[i],im[j]]=[im[j],im[i]];}}
-  for(let len=2;len<=N;len<<=1){
-    const a=-2*Math.PI/len,wR=Math.cos(a),wI=Math.sin(a);
-    for(let i=0;i<N;i+=len){
-      let cR=1,cI=0;
-      for(let k=0;k<len/2;k++){
-        const uR=re[i+k],uI=im[i+k];
-        const vR=re[i+k+len/2]*cR-im[i+k+len/2]*cI,vI=re[i+k+len/2]*cI+im[i+k+len/2]*cR;
-        re[i+k]=uR+vR;im[i+k]=uI+vI;re[i+k+len/2]=uR-vR;im[i+k+len/2]=uI-vI;
-        const nR=cR*wR-cI*wI;cI=cR*wI+cI*wR;cR=nR;
+function fftInPlace(re, im) {
+  const N = re.length; let j = 0;
+  for (let i = 1; i < N; i++) {
+    let b = N >> 1;
+    for (; j & b; b >>= 1) j ^= b;
+    j ^= b;
+    if (i < j) { [re[i],re[j]] = [re[j],re[i]]; [im[i],im[j]] = [im[j],im[i]]; }
+  }
+  for (let len = 2; len <= N; len <<= 1) {
+    const a = -2 * Math.PI / len, wR = Math.cos(a), wI = Math.sin(a);
+    for (let i = 0; i < N; i += len) {
+      let cR = 1, cI = 0;
+      for (let k = 0; k < len / 2; k++) {
+        const uR = re[i+k], uI = im[i+k];
+        const vR = re[i+k+len/2]*cR - im[i+k+len/2]*cI;
+        const vI = re[i+k+len/2]*cI + im[i+k+len/2]*cR;
+        re[i+k] = uR+vR; im[i+k] = uI+vI;
+        re[i+k+len/2] = uR-vR; im[i+k+len/2] = uI-vI;
+        const nR = cR*wR - cI*wI; cI = cR*wI + cI*wR; cR = nR;
       }
     }
   }
 }
-function nextPow2(n){let p=1;while(p<n)p<<=1;return p;}
 
-// ── STFT ──────────────────────────────────────────────────────────────────────
-function computeSTFT(smp,fs,hs,wt){
-  const fN=nextPow2(fs),nb=fN/2+1,frames=[];
-  for(let off=0;off+fs<=smp.length;off+=hs){
-    const w=applyWindow(smp.slice(off,off+fs),wt);
-    const re=new Float64Array(fN),im=new Float64Array(fN);re.set(w);
-    fftInPlace(re,im);
-    const b=new Float64Array(nb);
-    for(let k=0;k<nb;k++){const m=Math.sqrt(re[k]*re[k]+im[k]*im[k])/fN;b[k]=m>1e-12?20*Math.log10(m):-240;}
+function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
+
+function computeSTFT(smp, fs, hs, wt) {
+  const fN = nextPow2(fs), nb = fN / 2 + 1, frames = [];
+  for (let off = 0; off + fs <= smp.length; off += hs) {
+    const w = applyWindow(smp.slice(off, off + fs), wt);
+    const re = new Float64Array(fN), im = new Float64Array(fN);
+    re.set(w); fftInPlace(re, im);
+    const b = new Float64Array(nb);
+    for (let k = 0; k < nb; k++) {
+      const m = Math.sqrt(re[k]*re[k] + im[k]*im[k]) / fN;
+      b[k] = m > 1e-12 ? 20 * Math.log10(m) : -240;
+    }
     frames.push(b);
   }
   return frames;
 }
 
-// ── Peak detection ────────────────────────────────────────────────────────────
-function detectPeaks(frames,sr,fN,top=6){
-  const nb=frames[0].length,avg=new Float64Array(nb);
-  for(const f of frames) for(let k=0;k<nb;k++) avg[k]+=f[k];
-  for(let k=0;k<nb;k++) avg[k]/=frames.length;
-  const peaks=[];
-  for(let k=2;k<nb-2;k++)
-    if(avg[k]>avg[k-1]&&avg[k]>avg[k+1]&&avg[k]>avg[k-2]&&avg[k]>avg[k+2]&&avg[k]>-120)
-      peaks.push({bin:k,freq:k*sr/fN,db:avg[k]});
-  return peaks.sort((a,b)=>b.db-a.db).slice(0,top);
+function detectPeaks(frames, sr, fN, top = 6) {
+  const nb = frames[0].length, avg = new Float64Array(nb);
+  for (const f of frames) for (let k = 0; k < nb; k++) avg[k] += f[k];
+  for (let k = 0; k < nb; k++) avg[k] /= frames.length;
+  const peaks = [];
+  for (let k = 2; k < nb - 2; k++)
+    if (avg[k] > avg[k-1] && avg[k] > avg[k+1] && avg[k] > avg[k-2] && avg[k] > avg[k+2] && avg[k] > -120)
+      peaks.push({ bin: k, freq: k * sr / fN, db: avg[k] });
+  return peaks.sort((a, b) => b.db - a.db).slice(0, top);
 }
 
-// ── Renderer ──────────────────────────────────────────────────────────────────
-const ML=58,MB=28,MT=8,MR=10;
-let CR=null;
+const ML = 56, MB = 28, MT = 8, MR = 10;
+let CR = null;
 
-function renderSpectrogram(frames,sr,fs,hs,dbFloor,dbCeil,maxHz){
-  const fN=nextPow2(fs),nb=frames[0].length,nyq=sr/2;
-  const dNyq=Math.min(maxHz,nyq),dBins=Math.round(dNyq/nyq*nb);
-  const IW=Math.max(300,Math.min(frames.length,900)),IH=Math.max(180,Math.min(dBins,420));
-  const cv=document.getElementById('spectrogram');
-  cv.width=IW+ML+MR;cv.height=IH+MT+MB;
-  const ctx=cv.getContext('2d'),rng=dbCeil-dbFloor||1;
-  ctx.fillStyle='#0a0a0c';ctx.fillRect(0,0,cv.width,cv.height);
+function renderSpectrogram(frames, sr, fs, hs, dbFloor, dbCeil, maxHz) {
+  const fN = nextPow2(fs), nb = frames[0].length, nyq = sr / 2;
+  const dNyq = Math.min(maxHz, nyq), dBins = Math.round(dNyq / nyq * nb);
+  const IW = Math.max(300, Math.min(frames.length, 900));
+  const IH = Math.max(180, Math.min(dBins, 420));
+  const cv = document.getElementById('spectrogram');
+  cv.width = IW + ML + MR; cv.height = IH + MT + MB;
+  const ctx = cv.getContext('2d'), rng = dbCeil - dbFloor || 1;
+  ctx.fillStyle = '#09090b'; ctx.fillRect(0, 0, cv.width, cv.height);
 
-  // Pixels
-  const img=ctx.createImageData(IW,IH),d=img.data;
-  for(let x=0;x<IW;x++){
-    const fi=Math.min(Math.floor(x/IW*frames.length),frames.length-1),fr=frames[fi];
-    for(let y=0;y<IH;y++){
-      const bi=Math.min(Math.floor((IH-1-y)/IH*dBins),dBins-1);
-      const t=Math.max(0,Math.min(1,(fr[bi]-dbFloor)/rng));
-      const [r,g,b]=infernoRGB(t),px=(y*IW+x)*4;
-      d[px]=r;d[px+1]=g;d[px+2]=b;d[px+3]=255;
+  // Render pixels
+  const img = ctx.createImageData(IW, IH), d = img.data;
+  for (let x = 0; x < IW; x++) {
+    const fi = Math.min(Math.floor(x / IW * frames.length), frames.length - 1);
+    const fr = frames[fi];
+    for (let y = 0; y < IH; y++) {
+      const bi = Math.min(Math.floor((IH - 1 - y) / IH * dBins), dBins - 1);
+      const t = Math.max(0, Math.min(1, (fr[bi] - dbFloor) / rng));
+      const [r, g, b] = infernoRGB(t), px = (y * IW + x) * 4;
+      d[px] = r; d[px+1] = g; d[px+2] = b; d[px+3] = 255;
     }
   }
-  ctx.putImageData(img,ML,MT);
+  ctx.putImageData(img, ML, MT);
 
-  // Freq axis
-  ctx.font='11px monospace';ctx.fillStyle='#64748b';ctx.textAlign='right';
-  for(const f of niceTicks(0,dNyq,7)){
-    const y=MT+IH-Math.round(f/dNyq*IH);
-    ctx.fillText(f>=1000?`${(f/1000).toFixed(1)}k`:`${f}`,ML-5,y+4);
-    ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(ML,y);ctx.lineTo(ML+IW,y);ctx.stroke();
+  // Frequency axis
+  ctx.font = '11px monospace'; ctx.fillStyle = '#52525b'; ctx.textAlign = 'right';
+  for (const f of niceTicks(0, dNyq, 7)) {
+    const y = MT + IH - Math.round(f / dNyq * IH);
+    ctx.fillText(f >= 1000 ? `${(f/1000).toFixed(1)}k` : `${f}`, ML - 5, y + 4);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ML, y); ctx.lineTo(ML + IW, y); ctx.stroke();
   }
-  ctx.strokeStyle='#252830';ctx.beginPath();ctx.moveTo(ML,MT);ctx.lineTo(ML,MT+IH);ctx.stroke();
+  ctx.strokeStyle = '#27272a';
+  ctx.beginPath(); ctx.moveTo(ML, MT); ctx.lineTo(ML, MT + IH); ctx.stroke();
 
   // Time axis
-  const dur=frames.length*hs/sr;
-  ctx.textAlign='center';ctx.fillStyle='#64748b';
-  for(const t of niceTicks(0,dur,8)){
-    const x=ML+Math.round(t/dur*IW);
-    ctx.fillText(`${t.toFixed(1)}s`,x,MT+IH+MB-6);
-    ctx.strokeStyle='rgba(255,255,255,.07)';ctx.lineWidth=1;
-    ctx.beginPath();ctx.moveTo(x,MT);ctx.lineTo(x,MT+IH);ctx.stroke();
+  const dur = frames.length * hs / sr;
+  ctx.textAlign = 'center'; ctx.fillStyle = '#52525b';
+  for (const t of niceTicks(0, dur, 8)) {
+    const x = ML + Math.round(t / dur * IW);
+    ctx.fillText(`${t.toFixed(1)}s`, x, MT + IH + MB - 6);
+    ctx.strokeStyle = 'rgba(255,255,255,0.06)'; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, MT); ctx.lineTo(x, MT + IH); ctx.stroke();
   }
-  ctx.strokeStyle='#252830';ctx.beginPath();ctx.moveTo(ML,MT+IH);ctx.lineTo(ML+IW,MT+IH);ctx.stroke();
+  ctx.strokeStyle = '#27272a';
+  ctx.beginPath(); ctx.moveTo(ML, MT + IH); ctx.lineTo(ML + IW, MT + IH); ctx.stroke();
 
-  // Peaks
-  const peaks=detectPeaks(frames,sr,fN);
-  ctx.font='10px monospace';ctx.textAlign='left';
-  for(const p of peaks){
-    if(p.freq>dNyq) continue;
-    const y=MT+IH-Math.round(p.freq/dNyq*IH);
-    if(y<MT+6||y>MT+IH-6) continue;
-    ctx.strokeStyle='rgba(251,191,36,.5)';ctx.lineWidth=1;ctx.setLineDash([3,4]);
-    ctx.beginPath();ctx.moveTo(ML,y);ctx.lineTo(ML+IW,y);ctx.stroke();ctx.setLineDash([]);
-    ctx.fillStyle='#fbbf24';
-    const fl=p.freq<1?p.freq.toFixed(2):p.freq<10?p.freq.toFixed(1):Math.round(p.freq);
-    ctx.fillText(`${fl} Hz`,ML+4,y-3);
+  // Peak annotations
+  const peaks = detectPeaks(frames, sr, fN);
+  ctx.font = '10px monospace'; ctx.textAlign = 'left';
+  for (const p of peaks) {
+    if (p.freq > dNyq) continue;
+    const y = MT + IH - Math.round(p.freq / dNyq * IH);
+    if (y < MT + 6 || y > MT + IH - 6) continue;
+    ctx.strokeStyle = 'rgba(251,191,36,0.45)'; ctx.lineWidth = 1; ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(ML, y); ctx.lineTo(ML + IW, y); ctx.stroke(); ctx.setLineDash([]);
+    ctx.fillStyle = '#fbbf24';
+    const fl = p.freq < 1 ? p.freq.toFixed(2) : p.freq < 10 ? p.freq.toFixed(1) : Math.round(p.freq);
+    ctx.fillText(`${fl} Hz`, ML + 4, y - 3);
   }
 
-  CR={IW,IH,numFrames:frames.length,dBins,dNyq,dur,frames,dbFloor,dbCeil,fN,sr};
+  CR = { IW, IH, numFrames: frames.length, dBins, dNyq, dur, frames, fN, sr };
 
   // Peak chips
-  const row=document.getElementById('peaksRow');
-  row.innerHTML='<span style="font-size:12px;color:var(--muted);align-self:center">Detected peaks:</span>';
-  for(const p of peaks){
-    if(p.freq>dNyq) continue;
-    const c=document.createElement('span');c.className='peak-chip';
-    const fl=p.freq<1?p.freq.toFixed(2):p.freq<10?p.freq.toFixed(1):Math.round(p.freq);
-    c.textContent=`${fl} Hz (${p.db.toFixed(1)} dB)`;row.appendChild(c);
+  const row = document.getElementById('peaksRow');
+  row.innerHTML = '<span style="font-size:11px;color:var(--muted);align-self:center">Peaks:</span>';
+  for (const p of peaks) {
+    if (p.freq > dNyq) continue;
+    const c = document.createElement('span'); c.className = 'peak-chip';
+    const fl = p.freq < 1 ? p.freq.toFixed(2) : p.freq < 10 ? p.freq.toFixed(1) : Math.round(p.freq);
+    c.textContent = `${fl} Hz  ${p.db.toFixed(1)} dB`;
+    row.appendChild(c);
   }
-  row.style.display='flex';
+  row.style.display = 'flex';
 
   // Colorbar
-  const cb=document.getElementById('colorbar');cb.width=Math.max(300,IW+ML+MR);
-  const cc=cb.getContext('2d');
-  for(let x=0;x<cb.width;x++){const[r,g,b]=infernoRGB(x/cb.width);cc.fillStyle=`rgb(${r},${g},${b})`;cc.fillRect(x,0,1,18);}
-  document.getElementById('cbMin').textContent=`${dbFloor} dB`;
-  document.getElementById('cbMax').textContent=`${dbCeil} dB`;
+  const cb = document.getElementById('colorbar'); cb.width = Math.max(300, IW + ML + MR);
+  const cc = cb.getContext('2d');
+  for (let x = 0; x < cb.width; x++) {
+    const [r, g, b] = infernoRGB(x / cb.width);
+    cc.fillStyle = `rgb(${r},${g},${b})`; cc.fillRect(x, 0, 1, 16);
+  }
+  document.getElementById('cbMin').textContent = `${dbFloor} dB`;
+  document.getElementById('cbMax').textContent = `${dbCeil} dB`;
 }
 
-// ── Hover ─────────────────────────────────────────────────────────────────────
-const cv=document.getElementById('spectrogram'),tt=document.getElementById('tooltip');
-cv.addEventListener('mousemove',e=>{
-  if(!CR) return;
-  const{IW,IH,numFrames,dBins,dNyq,dur,frames,dbFloor,dbCeil,fN,sr}=CR;
-  const rc=cv.getBoundingClientRect(),sx=cv.width/rc.width,sy=cv.height/rc.height;
-  const cx=(e.clientX-rc.left)*sx,cy=(e.clientY-rc.top)*sy;
-  if(cx<ML||cx>ML+IW||cy<MT||cy>MT+IH){tt.style.display='none';return;}
-  const fi=Math.min(Math.floor((cx-ML)/IW*numFrames),numFrames-1);
-  const bi=Math.min(Math.floor((IH-(cy-MT))/IH*dBins),dBins-1);
-  const freq=bi*sr/fN,time=fi*dur/numFrames,db=frames[fi]?.[bi]??-240;
-  const fl=freq<10?freq.toFixed(2):freq<100?freq.toFixed(1):Math.round(freq);
-  tt.innerHTML=`<b>${fl} Hz</b><br>${time.toFixed(2)} s<br>${db<-200?'−∞':db.toFixed(1)} dB`;
-  tt.style.display='block';tt.style.left=`${e.clientX+14}px`;tt.style.top=`${e.clientY-10}px`;
+// Hover
+const cv = document.getElementById('spectrogram'), tt = document.getElementById('tooltip');
+cv.addEventListener('mousemove', e => {
+  if (!CR) return;
+  const { IW, IH, numFrames, dBins, dNyq, dur, frames, fN, sr } = CR;
+  const rc = cv.getBoundingClientRect(), sx = cv.width / rc.width, sy = cv.height / rc.height;
+  const cx = (e.clientX - rc.left) * sx, cy = (e.clientY - rc.top) * sy;
+  if (cx < ML || cx > ML + IW || cy < MT || cy > MT + IH) { tt.style.display = 'none'; return; }
+  const fi = Math.min(Math.floor((cx - ML) / IW * numFrames), numFrames - 1);
+  const bi = Math.min(Math.floor((IH - (cy - MT)) / IH * dBins), dBins - 1);
+  const freq = bi * sr / fN, time = fi * dur / numFrames, db = frames[fi]?.[bi] ?? -240;
+  const fl = freq < 10 ? freq.toFixed(2) : freq < 100 ? freq.toFixed(1) : Math.round(freq);
+  tt.innerHTML = `<b>${fl} Hz</b><br>${time.toFixed(2)} s<br>${db < -200 ? '-inf' : db.toFixed(1)} dB`;
+  tt.style.display = 'block';
+  tt.style.left = `${e.clientX + 14}px`;
+  tt.style.top  = `${e.clientY - 10}px`;
 });
-cv.addEventListener('mouseleave',()=>tt.style.display='none');
+cv.addEventListener('mouseleave', () => tt.style.display = 'none');
 
-// ── Status ────────────────────────────────────────────────────────────────────
-function setStatus(m,t='info'){const e=document.getElementById('status');e.textContent=m;e.className=t;}
+function setStatus(m, t = 'info') { const e = document.getElementById('status'); e.textContent = m; e.className = t; }
 
-// ── File handler ──────────────────────────────────────────────────────────────
-document.getElementById('fileInput').addEventListener('change',function(evt){
-  const file=evt.target.files[0];if(!file) return;
-  const fs=parseInt(document.getElementById('frameSize').value,10);
-  const hs=parseInt(document.getElementById('hopSize').value,10);
-  const wt=document.getElementById('windowType').value;
-  const dbF=parseFloat(document.getElementById('dbFloor').value);
-  const dbC=parseFloat(document.getElementById('dbCeil').value);
-  const mxF=parseFloat(document.getElementById('maxFreq').value)||500;
-
-  if(hs>=fs){setStatus('Hop size must be smaller than frame size.','error');return;}
-  if(dbC<=dbF){setStatus('dB ceiling must be above dB floor.','error');return;}
-
-  setStatus(`Reading ${file.name}…`,'info');
-  const r=new FileReader();
-  r.onload=e=>{
-    try{
-      const{samples,sampleRate,channels}=parseWAV(e.target.result);
-      const fN=nextPow2(fs),res=sampleRate/fN;
-      if(res>5) setStatus(
-        `⚠ Resolution ${res.toFixed(1)} Hz/bin. For pump sidebands (1–5 Hz apart) need ≤5 Hz/bin. `+
-        `Increase frame size to at least ${Math.ceil(sampleRate/5)} samples.`,'error');
-      else setStatus(`Computing STFT — ${samples.length.toLocaleString()} samples, ${channels>1?channels+'-ch→mono':'mono'}, ${sampleRate} Hz…`,'info');
-      setTimeout(()=>{
-        try{
-          const frames=computeSTFT(samples,fs,hs,wt);
-          renderSpectrogram(frames,sampleRate,fs,hs,dbF,dbC,mxF);
-          document.getElementById('fileInfo').textContent=`${file.name} · ${sampleRate} Hz · ${samples.length.toLocaleString()} samples · ${frames.length} frames`;
-          document.getElementById('resInfo').textContent=`Resolution: ${res.toFixed(2)} Hz/bin · ${(hs/sampleRate*1000).toFixed(0)} ms/frame`;
-          document.getElementById('spectrogramCard').style.display='';
-          setStatus(`Done — ${frames.length} frames · ${(samples.length/sampleRate).toFixed(2)} s · ${res.toFixed(2)} Hz/bin · ${sampleRate/2} Hz Nyquist.`,'success');
-        }catch(err){setStatus(`Processing error: ${err.message}`,'error');}
-      },10);
-    }catch(err){setStatus(`WAV error: ${err.message}`,'error');}
+document.getElementById('fileInput').addEventListener('change', function(evt) {
+  const file = evt.target.files[0]; if (!file) return;
+  const fs  = parseInt(document.getElementById('frameSize').value, 10);
+  const hs  = parseInt(document.getElementById('hopSize').value,   10);
+  const wt  = document.getElementById('windowType').value;
+  const dbF = parseFloat(document.getElementById('dbFloor').value);
+  const dbC = parseFloat(document.getElementById('dbCeil').value);
+  const mxF = parseFloat(document.getElementById('maxFreq').value) || 500;
+  if (hs >= fs) { setStatus('Hop size must be smaller than frame size.', 'error'); return; }
+  if (dbC <= dbF) { setStatus('dB ceiling must be above dB floor.', 'error'); return; }
+  setStatus(`Reading ${file.name}...`, 'info');
+  const r = new FileReader();
+  r.onload = e => {
+    try {
+      const { samples, sampleRate, channels } = parseWAV(e.target.result);
+      const fN = nextPow2(fs), res = sampleRate / fN;
+      if (res > 5) setStatus(`Warning: ${res.toFixed(1)} Hz/bin. For pump sidebands (1-5 Hz apart) need <= 5 Hz/bin. Increase frame size to >= ${Math.ceil(sampleRate / 5)} samples.`, 'error');
+      else setStatus(`Computing STFT — ${samples.length.toLocaleString()} samples, ${channels > 1 ? channels + '-ch -> mono' : 'mono'}, ${sampleRate} Hz...`, 'info');
+      setTimeout(() => {
+        try {
+          const frames = computeSTFT(samples, fs, hs, wt);
+          renderSpectrogram(frames, sampleRate, fs, hs, dbF, dbC, mxF);
+          document.getElementById('fileInfo').textContent =
+            `${file.name}  |  ${sampleRate} Hz  |  ${samples.length.toLocaleString()} samples  |  ${frames.length} frames`;
+          document.getElementById('resInfo').textContent =
+            `${res.toFixed(2)} Hz/bin  |  ${(hs / sampleRate * 1000).toFixed(0)} ms/frame`;
+          document.getElementById('spectrogramCard').style.display = '';
+          setStatus(`Done — ${frames.length} frames  |  ${(samples.length / sampleRate).toFixed(2)} s  |  ${res.toFixed(2)} Hz/bin  |  ${sampleRate / 2} Hz Nyquist`, 'success');
+        } catch (err) { setStatus(`Processing error: ${err.message}`, 'error'); }
+      }, 10);
+    } catch (err) { setStatus(`WAV error: ${err.message}`, 'error'); }
   };
   r.readAsArrayBuffer(file);
 });
 
-// ── Self-tests ────────────────────────────────────────────────────────────────
-function runSelfTests(){
-  const SR=8000,N=SR,fN=nextPow2(N),TGT=50,EXP=Math.round(TGT*fN/SR),TOL=3;
-  function sine(freq,amp=1){const s=new Float64Array(N);for(let i=0;i<N;i++)s[i]=amp*Math.sin(2*Math.PI*freq*i/SR);return s;}
-  function gnoise(std,seed=42){const s=new Float64Array(N);let st=seed;
-    function rnd(){st=(st*1664525+1013904223)&0xffffffff;return(st>>>0)/0xffffffff;}
-    for(let i=0;i<N;i+=2){const u1=Math.max(rnd(),1e-10),u2=rnd();
-      s[i]=Math.sqrt(-2*Math.log(u1))*Math.cos(2*Math.PI*u2)*std;
-      if(i+1<N)s[i+1]=Math.sqrt(-2*Math.log(u1))*Math.sin(2*Math.PI*u2)*std;}
-    return s;}
-  function peak(b){let p=1,v=-Infinity;for(let k=1;k<b.length;k++)if(b[k]>v){v=b[k];p=k;}return p;}
-  const res=[];
+// Self-tests
+function runSelfTests() {
+  const SR = 8000, N = SR, fN = nextPow2(N), TGT = 50, EXP = Math.round(TGT * fN / SR), TOL = 3;
+  function sine(freq, amp = 1) {
+    const s = new Float64Array(N);
+    for (let i = 0; i < N; i++) s[i] = amp * Math.sin(2 * Math.PI * freq * i / SR);
+    return s;
+  }
+  function gnoise(std, seed = 42) {
+    const s = new Float64Array(N); let st = seed;
+    function rnd() { st = (st * 1664525 + 1013904223) & 0xffffffff; return (st >>> 0) / 0xffffffff; }
+    for (let i = 0; i < N; i += 2) {
+      const u1 = Math.max(rnd(), 1e-10), u2 = rnd();
+      s[i] = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2) * std;
+      if (i + 1 < N) s[i + 1] = Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * u2) * std;
+    }
+    return s;
+  }
+  function peak(b) { let p = 1, mv = -Infinity; for (let k = 1; k < b.length; k++) if (b[k] > mv) { mv = b[k]; p = k; } return p; }
+  const res = [];
 
-  // 1. Sine
-  {const fr=computeSTFT(sine(TGT),N,N,'hann'),pk=peak(fr[0]),ok=Math.abs(pk-EXP)<=TOL;
-   res.push({name:'sine_detection',passed:ok,warn:false,
-     what:'Mathematically perfect 50 Hz sine → verify FFT places peak at correct bin',
-     failure:'If this fails: FFT algorithm has a bug. Nothing else can be trusted.',
-     result:`Peak bin ${pk} = ${(pk*SR/fN).toFixed(1)} Hz (expected ~${TGT} Hz, ±${TOL} bins)`});}
+  { const fr = computeSTFT(sine(TGT), N, N, 'hann'), pk = peak(fr[0]), ok = Math.abs(pk - EXP) <= TOL;
+    res.push({ name: 'sine_detection', passed: ok, warn: false,
+      what: 'Perfect 50 Hz sine -> verify FFT places peak at correct bin',
+      why: 'If this fails: FFT algorithm has a bug. Nothing else can be trusted.',
+      result: `Peak bin ${pk} = ${(pk * SR / fN).toFixed(1)} Hz (expected ~${TGT} Hz, +/-${TOL} bins)` }); }
 
-  // 2. Noise
-  {const sig=sine(TGT),ns=gnoise(.224),mix=new Float64Array(N);
-   for(let i=0;i<N;i++)mix[i]=sig[i]+ns[i];
-   const fr=computeSTFT(mix,N,N,'hann'),pk=peak(fr[0]),ok=Math.abs(pk-EXP)<=TOL;
-   res.push({name:'sine_plus_noise',passed:ok,warn:false,
-     what:'50 Hz sine + Gaussian noise (SNR≈10 dB) → verify peak still found through noise',
-     failure:'If this fails: algorithm is not robust enough for real-world microphone recordings.',
-     result:`Peak bin ${pk} = ${(pk*SR/fN).toFixed(1)} Hz despite noise`});}
+  { const sig = sine(TGT), ns = gnoise(0.224), mix = new Float64Array(N);
+    for (let i = 0; i < N; i++) mix[i] = sig[i] + ns[i];
+    const fr = computeSTFT(mix, N, N, 'hann'), pk = peak(fr[0]), ok = Math.abs(pk - EXP) <= TOL;
+    res.push({ name: 'sine_plus_noise', passed: ok, warn: false,
+      what: '50 Hz sine + Gaussian noise (SNR ~10 dB) -> peak still found through noise',
+      why: 'If this fails: algorithm not robust for real-world microphone recordings.',
+      result: `Peak bin ${pk} = ${(pk * SR / fN).toFixed(1)} Hz despite noise` }); }
 
-  // 3. Silence
-  {const fr=computeSTFT(new Float64Array(N).fill(0),N,N,'hann'),mx=Math.max(...fr[0]),ok=mx<-80;
-   res.push({name:'silence_no_alarm',passed:ok,warn:false,
-     what:'All-zero input → no bin should exceed −80 dB (no phantom frequencies in silence)',
-     failure:'If this fails: numerical noise in the FFT causes false alarms on quiet signals.',
-     result:`Max bin = ${mx.toFixed(2)} dB`});}
+  { const fr = computeSTFT(new Float64Array(N).fill(0), N, N, 'hann'), mx = Math.max(...fr[0]), ok = mx < -80;
+    res.push({ name: 'silence_no_alarm', passed: ok, warn: false,
+      what: 'All-zero input -> no bin above -80 dB (no phantom frequencies in silence)',
+      why: 'If this fails: FFT numerical noise would cause false alarms on quiet signals.',
+      result: `Max bin = ${mx.toFixed(2)} dB` }); }
 
-  // 4. Clipping
-  {const big=sine(TGT,2);let at=0;
-   for(let i=0;i<big.length;i++){big[i]=Math.max(-.9,Math.min(.9,big[i]));if(Math.abs(big[i])>=.9)at++;}
-   const fr=big.length,det=at/fr>.05;
-   res.push({name:'clipping_warn',passed:det,warn:det,
-     what:'ADC-saturated (clipped) signal → must detect and warn before computing wrong spectrum',
-     failure:'If this fails: clipping goes undetected, spectrum will show harmonic distortion as real fault peaks.',
-     result:`${(at/fr*100).toFixed(1)}% samples at ±0.9${det?' — ⚠ saturation flagged correctly':' — NOT detected'}`});}
+  { const big = sine(TGT, 2); let at = 0;
+    for (let i = 0; i < big.length; i++) { big[i] = Math.max(-0.9, Math.min(0.9, big[i])); if (Math.abs(big[i]) >= 0.9) at++; }
+    const frac = at / big.length, det = frac > 0.05;
+    res.push({ name: 'clipping_warn', passed: det, warn: det,
+      what: 'ADC-saturated signal -> must warn before computing a distorted spectrum',
+      why: 'If this fails: clipping goes undetected and harmonic distortion appears as fake fault peaks.',
+      result: `${(frac * 100).toFixed(1)}% samples at +/-0.9${det ? ' -- saturation flagged correctly' : ' -- NOT detected'}` }); }
 
   return res;
 }
 
-function renderSelfTests(){
-  const tbody=document.getElementById('selfTestBody');tbody.innerHTML='';
-  for(const r of runSelfTests()){
-    const tr=document.createElement('tr');
-    const cls=r.passed?(r.warn?'warn':'pass'):'fail',icon=r.passed?(r.warn?'⚠':'✓'):'✗';
-    tr.innerHTML=`<td>${r.name}</td>
-      <td class="${cls}">${icon} ${r.passed?'PASS':'FAIL'}</td>
-      <td>${r.what}<div class="test-sub">${r.failure}</div></td>
-      <td>${r.result}</td>`;
+function renderSelfTests() {
+  const tbody = document.getElementById('selfTestBody'); tbody.innerHTML = '';
+  for (const r of runSelfTests()) {
+    const tr = document.createElement('tr');
+    const cls = r.passed ? (r.warn ? 'warn' : 'pass') : 'fail';
+    const icon = r.passed ? (r.warn ? '! PASS' : 'PASS') : 'FAIL';
+    tr.innerHTML = `
+      <td>${r.name}</td>
+      <td class="${cls}">${icon}</td>
+      <td>${r.what}<div class="sub">${r.why}</div></td>
+      <td style="font-family:monospace;font-size:11px;color:var(--muted2)">${r.result}</td>`;
     tbody.appendChild(tr);
   }
-  document.getElementById('selfTestCard').style.display='';
+  document.getElementById('selfTestCard').style.display = '';
 }
 
-window.addEventListener('DOMContentLoaded',()=>{
+window.addEventListener('DOMContentLoaded', () => {
   renderSelfTests();
-  setStatus('Ready — select a PCM WAV file above.','info');
+  setStatus('Ready -- select a PCM WAV file above.', 'info');
 });
 </script>
 </body>
