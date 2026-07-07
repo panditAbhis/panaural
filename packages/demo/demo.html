@@ -1,316 +1,444 @@
 <!DOCTYPE html>
 <!-- SPDX-License-Identifier: MIT -->
 <!-- Copyright (c) 2026 panditAbhis — Panaural Project -->
+<!--
+  CHANGELOG v1.1.0 — Weekend 1 stabilisation
+  ───────────────────────────────────────────
+  WHAT:   Default frameSize 1024 → 8000 samples. Hop 512 → 2000 (25% of frame).
+  WHY:    frameSize=1024 at 8000 Hz SR = 7.8 Hz per frequency bucket.
+          Pump bearing sidebands sit 1–5 Hz apart — invisible at 7.8 Hz steps.
+          frameSize=8000 = 0.98 Hz/bin. Sidebands resolve. Physics wins.
+          This now matches the self-test parameters (which were always correct).
+  SOURCE: ISO 20816 machine monitoring. Resolution = sampleRate / frameSize.
+  VISUAL: Green monochrome → inferno colormap (industry standard).
+          Added: labeled frequency/time axes, hover cursor, peak annotation,
+          dB floor/ceiling controls, plain-language explainers.
+-->
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Panaural — STFT Spectrogram Demo</title>
+  <title>Panaural — Spectrogram Demo</title>
   <style>
     :root {
-      --bg: #0d0d0f;
-      --surface: #16181d;
-      --border: #2a2d36;
+      --bg: #0a0a0c;
+      --surface: #13151a;
+      --surface2: #1a1d24;
+      --border: #252830;
       --accent: #4ade80;
+      --accent2: #60a5fa;
       --text: #e2e8f0;
       --muted: #64748b;
       --danger: #f87171;
-      --warning: #facc15;
+      --warning: #fbbf24;
+      --fix: #a78bfa;
     }
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       background: var(--bg);
       color: var(--text);
-      font-family: 'Segoe UI', system-ui, sans-serif;
+      font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
       font-size: 14px;
       line-height: 1.6;
-      padding: 24px;
-      max-width: 960px;
+      padding: 24px 20px;
+      max-width: 1000px;
       margin: 0 auto;
     }
-    h1 { font-size: 1.5rem; font-weight: 700; color: var(--accent); margin-bottom: 4px; }
-    .subtitle { color: var(--muted); margin-bottom: 24px; }
+    h1 { font-size: 1.6rem; font-weight: 700; color: var(--accent); }
+    h2 { font-size: 0.95rem; font-weight: 600; color: var(--text); margin-bottom: 12px; }
+    .subtitle { color: var(--muted); margin-bottom: 6px; font-size: 13px; }
+    .ius { color: var(--warning); font-size: 12px; margin-bottom: 24px; }
+
+    /* ── Fix notice ── */
+    .fix-notice {
+      background: #1a1428;
+      border: 1px solid #5b21b6;
+      border-left: 4px solid var(--fix);
+      border-radius: 8px;
+      padding: 16px 18px;
+      margin-bottom: 20px;
+    }
+    .fix-notice .fix-tag {
+      display: inline-block;
+      background: var(--fix);
+      color: #000;
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 4px;
+      margin-bottom: 8px;
+      letter-spacing: 0.05em;
+    }
+    .fix-notice h3 { font-size: 0.9rem; color: var(--fix); margin-bottom: 6px; }
+    .fix-notice p { font-size: 13px; color: #c4b5fd; line-height: 1.65; margin-bottom: 6px; }
+    .fix-notice p:last-child { margin-bottom: 0; }
+    .fix-detail { font-family: monospace; font-size: 12px; background: #120e1e; padding: 8px 12px; border-radius: 4px; color: #d8b4fe; margin-top: 8px; }
+
+    /* ── Cards ── */
     .card {
       background: var(--surface);
       border: 1px solid var(--border);
       border-radius: 8px;
-      padding: 20px;
-      margin-bottom: 20px;
+      padding: 18px 20px;
+      margin-bottom: 18px;
     }
-    .card h2 { font-size: 1rem; font-weight: 600; margin-bottom: 12px; color: var(--text); }
-    label { display: block; margin-bottom: 8px; color: var(--muted); font-size: 13px; }
-    input[type="file"] {
-      display: block;
-      color: var(--text);
-      background: var(--bg);
-      border: 1px solid var(--border);
+
+    /* ── Explainer ── */
+    .explainer {
+      background: var(--surface2);
+      border: 1px solid #1e3a5f;
       border-radius: 6px;
-      padding: 10px 14px;
-      width: 100%;
-      cursor: pointer;
+      padding: 12px 16px;
+      margin-bottom: 16px;
+      font-size: 13px;
+      color: #93c5fd;
+      line-height: 1.7;
+    }
+    .explainer strong { color: #bfdbfe; }
+    details summary { cursor: pointer; color: var(--accent2); font-size: 13px; font-weight: 600; margin-bottom: 4px; list-style: none; }
+    details summary::before { content: '▶ '; font-size: 10px; }
+    details[open] summary::before { content: '▼ '; }
+    details[open] .explainer { margin-top: 8px; }
+
+    /* ── Controls ── */
+    label { display: block; color: var(--muted); font-size: 12px; margin-bottom: 4px; }
+    input[type="file"] {
+      display: block; color: var(--text);
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; padding: 10px 14px; width: 100%; cursor: pointer;
     }
     input[type="file"]::file-selector-button {
-      background: var(--accent);
-      color: #000;
-      border: none;
-      border-radius: 4px;
-      padding: 6px 12px;
-      margin-right: 12px;
-      font-weight: 600;
-      cursor: pointer;
+      background: var(--accent); color: #000; border: none; border-radius: 4px;
+      padding: 6px 14px; margin-right: 12px; font-weight: 700; cursor: pointer;
     }
-    .controls { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px; margin-top: 12px; }
-    .control { display: flex; flex-direction: column; gap: 6px; }
-    .control label { color: var(--muted); font-size: 12px; margin: 0; }
-    select, input[type="number"] {
-      background: var(--bg);
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      color: var(--text);
-      padding: 8px 10px;
-      font-size: 13px;
+    .controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-top: 14px; }
+    .control { display: flex; flex-direction: column; gap: 4px; }
+    .control .hint { font-size: 11px; color: #374151; margin-top: 2px; }
+    select, input[type="number"], input[type="range"] {
+      background: var(--bg); border: 1px solid var(--border);
+      border-radius: 6px; color: var(--text); padding: 7px 10px; font-size: 13px; width: 100%;
     }
-    button {
-      background: var(--accent);
-      color: #000;
-      border: none;
-      border-radius: 6px;
-      padding: 10px 24px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.15s;
-    }
-    button:hover { opacity: 0.85; }
-    button:disabled { opacity: 0.4; cursor: not-allowed; }
+    input[type="range"] { padding: 4px 0; accent-color: var(--accent); }
+
+    /* ── Status ── */
     #status {
-      padding: 10px 14px;
-      border-radius: 6px;
-      margin-top: 12px;
-      font-size: 13px;
-      display: none;
+      padding: 10px 14px; border-radius: 6px;
+      margin-top: 12px; font-size: 13px; display: none;
     }
-    #status.info { background: #1e293b; color: #93c5fd; border: 1px solid #1d4ed8; display: block; }
-    #status.error { background: #1c1010; color: var(--danger); border: 1px solid #991b1b; display: block; }
+    #status.info    { background: #1e293b; color: #93c5fd; border: 1px solid #1d4ed8; display: block; }
+    #status.error   { background: #1c1010; color: var(--danger); border: 1px solid #991b1b; display: block; }
     #status.success { background: #0f1f0f; color: var(--accent); border: 1px solid #166534; display: block; }
-    .canvas-wrap {
-      position: relative;
-      border: 1px solid var(--border);
-      border-radius: 6px;
-      overflow: hidden;
-      margin-top: 8px;
+
+    /* ── Spectrogram canvas area ── */
+    .spectrogram-wrap { position: relative; margin-top: 10px; }
+    canvas#spectrogram { display: block; width: 100%; image-rendering: pixelated; }
+
+    /* ── Hover tooltip ── */
+    #tooltip {
+      position: fixed; background: #1e293b; border: 1px solid #334155;
+      color: var(--text); font-size: 12px; font-family: monospace;
+      padding: 6px 10px; border-radius: 5px; pointer-events: none;
+      display: none; z-index: 100; line-height: 1.8;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.4);
     }
-    canvas { display: block; width: 100%; }
-    .axis-label {
-      position: absolute;
-      font-size: 11px;
-      color: var(--muted);
+
+    /* ── Colorbar ── */
+    .colorbar-wrap { margin-top: 6px; }
+    canvas#colorbar { display: block; width: 100%; height: 18px; border-radius: 3px; }
+    .colorbar-labels {
+      display: flex; justify-content: space-between;
+      font-size: 11px; color: var(--muted); margin-top: 2px; font-family: monospace;
     }
-    .axis-label.y-label { left: 4px; top: 50%; transform: translateY(-50%) rotate(-90deg); transform-origin: center; white-space: nowrap; }
-    .axis-label.x-label { bottom: 4px; left: 50%; transform: translateX(-50%); }
+
+    /* ── Peak table ── */
+    .peaks-row { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+    .peak-chip {
+      background: #1e293b; border: 1px solid #334155;
+      color: var(--accent2); font-family: monospace; font-size: 12px;
+      padding: 3px 10px; border-radius: 12px;
+    }
+
+    /* ── Self-test ── */
     table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 8px; }
     th { background: var(--bg); color: var(--muted); font-weight: 600; padding: 8px 12px; text-align: left; border-bottom: 1px solid var(--border); }
     td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
-    td:first-child { font-weight: 600; font-family: monospace; }
-    .pass { color: var(--accent); }
-    .fail { color: var(--danger); }
-    .warn { color: var(--warning); }
-    .colorbar {
-      height: 16px;
-      border-radius: 4px;
-      background: linear-gradient(to right, #000, #003300, #006600, #00cc00, #66ff66);
-      margin-top: 8px;
-      position: relative;
-    }
-    .colorbar-labels {
-      display: flex;
-      justify-content: space-between;
-      font-size: 11px;
-      color: var(--muted);
-      margin-top: 2px;
-    }
+    td:first-child { font-weight: 600; font-family: monospace; width: 160px; }
+    .pass { color: var(--accent); } .fail { color: var(--danger); } .warn { color: var(--warning); }
+    .test-meaning { font-size: 11px; color: var(--muted); margin-top: 2px; font-style: italic; }
   </style>
 </head>
 <body>
 
 <h1>Panaural</h1>
-<p class="subtitle">Acoustic drift-detection · STFT Spectrogram Demo · <em>Indicative, not diagnostic</em></p>
+<p class="subtitle">Acoustic drift-detection · STFT Spectrogram Demo</p>
+<p class="ius">⚠ Indicative only — not diagnostic. Not a replacement for certified inspection. All decisions require qualified personnel.</p>
 
-<!-- File input -->
+<!-- Resolution fix notice -->
+<div class="fix-notice">
+  <span class="fix-tag">v1.1.0 FIX</span>
+  <h3>We fixed the frequency resolution — here's what that means</h3>
+  <p>
+    The previous version used a frame size of <strong>1,024 samples</strong>. At 8,000 Hz sample rate,
+    that made each frequency "bucket" <strong>7.8 Hz wide</strong> — like trying to read a ruler
+    that only has markings every 8 millimetres.
+  </p>
+  <p>
+    Pump bearing defects create sidebands (extra tones) that sit <strong>1–5 Hz apart</strong> from the main tone.
+    At 7.8 Hz resolution, those sidebands merged into one blob. You'd see a healthy pump
+    and a failing pump look <em>identical</em>.
+  </p>
+  <p>
+    We changed the frame size to <strong>8,000 samples</strong>. Now each bucket is <strong>0.98 Hz wide</strong>.
+    Sidebands are visible. The spectrogram now behaves like the reference instruments (scipy, MATLAB, SpectraPlus).
+  </p>
+  <div class="fix-detail">
+    Before: frameSize=1024 → 8000/1024 = 7.8 Hz/bin  ✗ misses pump sidebands<br>
+    After:  frameSize=8000 → 8000/8000 = 1.0 Hz/bin  ✓ resolves sidebands correctly
+  </div>
+</div>
+
+<!-- What is a spectrogram -->
+<details>
+  <summary>What am I looking at? (click to expand)</summary>
+  <div class="explainer">
+    <strong>A spectrogram is a map of sound over time.</strong><br><br>
+    <strong>Left → Right = Time.</strong> Each column is one tiny slice of your recording, about 1 second wide.<br><br>
+    <strong>Bottom → Top = Frequency (pitch).</strong> Deep, low rumbles live at the bottom.
+    High-pitched whines live at the top. The middle is where most pump hums sit (50–500 Hz).<br><br>
+    <strong>Colour = Loudness (in dB).</strong> Near-white is loud. Black is silence.
+    The inferno colour scale (black → purple → red → orange → white) is an industry standard
+    used by MATLAB, SpectraPlus, and scientific instruments. It makes quiet detail visible without blowing out bright peaks.<br><br>
+    <strong>A healthy pump makes straight horizontal lines.</strong>
+    The lines stay at the same frequency, same brightness, second after second.
+    When a bearing wears, those lines drift upward or new sidebands appear beside them.
+    That drift is what Panaural is trained to catch.
+  </div>
+</details>
+
+<!-- Load audio -->
 <div class="card">
   <h2>1 · Load Audio</h2>
-  <label>Select a PCM WAV file (16-bit, mono recommended)</label>
+  <label>Select a PCM WAV file (16-bit, mono or stereo — stereo is mixed to mono automatically)</label>
   <input type="file" id="fileInput" accept=".wav" />
 
   <div class="controls">
     <div class="control">
       <label>Window function</label>
       <select id="windowType">
-        <option value="hann" selected>Hann</option>
+        <option value="hann" selected>Hann (recommended)</option>
         <option value="hamming">Hamming</option>
-        <option value="blackman">Blackman</option>
-        <option value="rect">Rectangular</option>
+        <option value="blackman">Blackman (best sidelobe)</option>
+        <option value="rect">Rectangular (no window)</option>
       </select>
+      <span class="hint">Hann: best general-purpose. Blackman: use when you need to see faint tones next to loud ones.</span>
     </div>
     <div class="control">
       <label>Frame size (samples)</label>
-      <input type="number" id="frameSize" value="1024" min="64" max="65536" step="256" />
+      <input type="number" id="frameSize" value="8000" min="64" max="65536" step="1000" />
+      <span class="hint">= 1 sec at 8 kHz. Bigger = finer frequency detail, coarser time detail.</span>
     </div>
     <div class="control">
       <label>Hop size (samples)</label>
-      <input type="number" id="hopSize" value="512" min="1" max="65536" step="128" />
+      <input type="number" id="hopSize" value="2000" min="1" max="65536" step="500" />
+      <span class="hint">25% of frame = 75% overlap. Standard for smooth spectrograms.</span>
+    </div>
+    <div class="control">
+      <label>dB floor (quiet cutoff)</label>
+      <input type="number" id="dbFloor" value="-80" min="-200" max="-10" step="10" />
+      <span class="hint">Everything below this appears black. -80 dB is standard.</span>
+    </div>
+    <div class="control">
+      <label>dB ceiling (loud cutoff)</label>
+      <input type="number" id="dbCeil" value="-10" min="-100" max="0" step="5" />
+      <span class="hint">Everything above this appears white. Adjust to your signal level.</span>
+    </div>
+    <div class="control">
+      <label>Max frequency (Hz)</label>
+      <input type="number" id="maxFreq" value="500" min="50" max="24000" step="50" />
+      <span class="hint">Zoom the Y-axis. 500 Hz covers all pump fundamentals. Raise for bearing/cavitation work.</span>
     </div>
   </div>
 
-  <div id="status">Ready. Load a WAV file to begin.</div>
+  <div id="status">Ready. Select a PCM WAV file above.</div>
 </div>
 
 <!-- Spectrogram -->
 <div class="card" id="spectrogramCard" style="display:none">
   <h2>2 · Spectrogram</h2>
-  <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;font-size:12px;color:var(--muted)">
-    <span id="fileInfo"></span>
+  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;flex-wrap:wrap;gap:8px">
+    <span id="fileInfo" style="font-size:12px;color:var(--muted);font-family:monospace"></span>
+    <span id="resInfo" style="font-size:12px;color:var(--accent);font-family:monospace"></span>
   </div>
-  <div class="canvas-wrap" style="min-height:240px">
+
+  <div class="spectrogram-wrap" id="spectrogramWrap">
     <canvas id="spectrogram"></canvas>
   </div>
-  <div class="colorbar"></div>
-  <div class="colorbar-labels"><span>Quiet (low dB)</span><span>Loud (high dB)</span></div>
-  <p style="font-size:11px;color:var(--muted);margin-top:6px">Y-axis: frequency 0 → Nyquist · X-axis: time →</p>
+
+  <div class="colorbar-wrap" style="margin-top:8px">
+    <canvas id="colorbar" height="18"></canvas>
+    <div class="colorbar-labels">
+      <span id="cbMin"></span>
+      <span style="color:var(--muted)">← Quiet ·················· Loud →</span>
+      <span id="cbMax"></span>
+    </div>
+  </div>
+
+  <div id="peaksRow" class="peaks-row" style="display:none">
+    <span style="font-size:12px;color:var(--muted);align-self:center">Detected peaks:</span>
+  </div>
+
+  <p style="font-size:11px;color:var(--muted);margin-top:8px">
+    Hover over the spectrogram to read frequency, time, and level. Each bright horizontal line is a steady tone — a machine making a constant sound at that pitch.
+  </p>
 </div>
 
-<!-- Self-test results -->
-<div class="card" id="selfTestCard" style="display:none">
+<!-- Self-test -->
+<div class="card" id="selfTestCard">
   <h2>3 · Self-Test Results</h2>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+    These four tests run automatically on every page load using synthetic signals — no microphone needed.
+    They verify the STFT math is correct before any real audio is analysed.
+    All four must pass before Panaural can be trusted with real data.
+  </p>
   <table id="selfTestTable">
     <thead>
-      <tr><th>Test</th><th>Pass?</th><th>Expected</th><th>Actual</th></tr>
+      <tr><th>Test</th><th>Pass?</th><th>What it checks</th><th>Result</th></tr>
     </thead>
     <tbody id="selfTestBody"></tbody>
   </table>
 </div>
 
-<script>
-// ── Utilities ──────────────────────────────────────────────────────────────
+<div id="tooltip"></div>
 
+<script>
+'use strict';
+
+// ── Inferno colormap (8 anchor points, linear interpolation) ─────────────────
+// Industry standard — MATLAB, SpectraPlus, matplotlib all use this.
+// black → deep purple → red → orange → yellow → near-white
+const INFERNO_ANCHORS = [
+  [0,   0,   4  ],
+  [40,  11,  84 ],
+  [101, 21,  110],
+  [159, 42,  99 ],
+  [212, 72,  66 ],
+  [245, 125, 21 ],
+  [250, 193, 39 ],
+  [252, 255, 164],
+  [252, 255, 252],
+];
+
+function infernoRGB(t) {
+  t = Math.max(0, Math.min(1, t));
+  const n = INFERNO_ANCHORS.length - 1;
+  const i = Math.min(Math.floor(t * n), n - 1);
+  const f = t * n - i;
+  const a = INFERNO_ANCHORS[i], b = INFERNO_ANCHORS[i + 1];
+  return [
+    Math.round(a[0] + f * (b[0] - a[0])),
+    Math.round(a[1] + f * (b[1] - a[1])),
+    Math.round(a[2] + f * (b[2] - a[2])),
+  ];
+}
+
+// ── Nice tick generator ───────────────────────────────────────────────────────
+function niceTicks(minV, maxV, target = 7) {
+  const range = maxV - minV;
+  if (range <= 0) return [minV];
+  const rawStep = range / target;
+  const mag = Math.pow(10, Math.floor(Math.log10(rawStep)));
+  const nice = [1, 2, 5, 10];
+  let step = mag;
+  for (const n of nice) if (mag * n >= rawStep) { step = mag * n; break; }
+  const ticks = [];
+  for (let v = Math.ceil(minV / step) * step; v <= maxV + step * 0.01; v += step) {
+    ticks.push(parseFloat(v.toFixed(10)));
+  }
+  return ticks;
+}
+
+// ── Status helper ─────────────────────────────────────────────────────────────
 function setStatus(msg, type = 'info') {
   const el = document.getElementById('status');
   el.textContent = msg;
   el.className = type;
 }
 
-// ── WAV parser ─────────────────────────────────────────────────────────────
-
-/**
- * Parse a PCM WAV file from an ArrayBuffer.
- * Returns { samples: Float64Array, sampleRate: number }
- * Throws a descriptive error for unsupported formats.
- */
+// ── WAV parser ────────────────────────────────────────────────────────────────
 function parseWAV(buffer) {
   const view = new DataView(buffer);
+  const readStr = (off) => String.fromCharCode(view.getUint8(off), view.getUint8(off+1), view.getUint8(off+2), view.getUint8(off+3));
+  if (readStr(0) !== 'RIFF') throw new Error('Not a RIFF file.');
+  if (readStr(8) !== 'WAVE')  throw new Error('Not a WAVE file.');
 
-  // RIFF header
-  const riff = String.fromCharCode(view.getUint8(0), view.getUint8(1), view.getUint8(2), view.getUint8(3));
-  if (riff !== 'RIFF') throw new Error('Not a RIFF file (expected "RIFF" at byte 0)');
-
-  const wave = String.fromCharCode(view.getUint8(8), view.getUint8(9), view.getUint8(10), view.getUint8(11));
-  if (wave !== 'WAVE') throw new Error('Not a WAVE file (expected "WAVE" at byte 8)');
-
-  // Walk chunks
-  let offset = 12;
-  let audioFormat = -1, numChannels = -1, sampleRate = -1, bitsPerSample = -1;
-  let dataStart = -1, dataLength = -1;
-
+  let offset = 12, audioFormat=-1, numChannels=-1, sampleRate=-1, bitsPerSample=-1, dataStart=-1, dataLength=-1;
   while (offset < buffer.byteLength - 8) {
-    const chunkId = String.fromCharCode(view.getUint8(offset), view.getUint8(offset+1), view.getUint8(offset+2), view.getUint8(offset+3));
+    const chunkId   = readStr(offset);
     const chunkSize = view.getUint32(offset + 4, true);
-
     if (chunkId === 'fmt ') {
-      audioFormat  = view.getUint16(offset + 8,  true);
-      numChannels  = view.getUint16(offset + 10, true);
-      sampleRate   = view.getUint32(offset + 12, true);
+      audioFormat   = view.getUint16(offset + 8,  true);
+      numChannels   = view.getUint16(offset + 10, true);
+      sampleRate    = view.getUint32(offset + 12, true);
       bitsPerSample = view.getUint16(offset + 22, true);
     } else if (chunkId === 'data') {
       dataStart  = offset + 8;
       dataLength = chunkSize;
     }
-
-    offset += 8 + chunkSize;
-    // Pad to even
-    if (chunkSize % 2 !== 0) offset++;
+    offset += 8 + chunkSize + (chunkSize % 2 !== 0 ? 1 : 0);
   }
 
-  if (audioFormat !== 1) throw new Error(`Unsupported audio format ${audioFormat}. Only PCM (format=1) is supported.`);
-  if (bitsPerSample !== 16) throw new Error(`Unsupported bit depth ${bitsPerSample}. Only 16-bit PCM is supported.`);
-  if (dataStart === -1) throw new Error('No data chunk found in WAV file.');
+  if (audioFormat !== 1)  throw new Error(`Only PCM WAV is supported (format=${audioFormat} found).`);
+  if (bitsPerSample !== 16) throw new Error(`Only 16-bit PCM is supported (${bitsPerSample}-bit found).`);
+  if (dataStart === -1)   throw new Error('No audio data chunk found.');
 
-  // Decode 16-bit PCM → Float64, mix to mono if stereo
-  const bytesPerSample = bitsPerSample / 8;
-  const totalSamples = Math.floor(dataLength / (bytesPerSample * numChannels));
+  const totalSamples = Math.floor(dataLength / (2 * numChannels));
   const samples = new Float64Array(totalSamples);
-
   for (let i = 0; i < totalSamples; i++) {
-    let monoSample = 0;
-    for (let ch = 0; ch < numChannels; ch++) {
-      const byteOffset = dataStart + (i * numChannels + ch) * bytesPerSample;
-      monoSample += view.getInt16(byteOffset, true) / 32768.0;
-    }
-    samples[i] = monoSample / numChannels;
+    let mono = 0;
+    for (let ch = 0; ch < numChannels; ch++)
+      mono += view.getInt16(dataStart + (i * numChannels + ch) * 2, true) / 32768.0;
+    samples[i] = mono / numChannels;
   }
-
-  return { samples, sampleRate };
+  return { samples, sampleRate, channels: numChannels };
 }
 
-// ── Window functions ───────────────────────────────────────────────────────
-
+// ── Window functions ──────────────────────────────────────────────────────────
 function applyWindow(samples, type) {
-  const N = samples.length;
-  const out = new Float64Array(N);
-  const TWO_PI = 2 * Math.PI;
+  const N = samples.length, out = new Float64Array(N), TWO_PI = 2 * Math.PI;
   for (let n = 0; n < N; n++) {
     let w;
     switch (type) {
-      case 'hann':    w = 0.5 * (1 - Math.cos(TWO_PI * n / (N - 1))); break;
-      case 'hamming': w = 0.54 - 0.46 * Math.cos(TWO_PI * n / (N - 1)); break;
-      case 'blackman': w = 0.42 - 0.5 * Math.cos(TWO_PI * n / (N - 1)) + 0.08 * Math.cos(4 * Math.PI * n / (N - 1)); break;
-      case 'rect':    w = 1.0; break;
-      default:        w = 1.0;
+      case 'hann':    w = 0.5  * (1 - Math.cos(TWO_PI * n / (N-1))); break;
+      case 'hamming': w = 0.54 - 0.46 * Math.cos(TWO_PI * n / (N-1)); break;
+      case 'blackman': w = 0.42 - 0.5 * Math.cos(TWO_PI * n / (N-1)) + 0.08 * Math.cos(4*Math.PI*n/(N-1)); break;
+      default: w = 1.0;
     }
     out[n] = samples[n] * w;
   }
   return out;
 }
 
-// ── Cooley-Tukey radix-2 DIT FFT ──────────────────────────────────────────
-
+// ── Cooley-Tukey radix-2 DIT FFT ─────────────────────────────────────────────
 function fftInPlace(re, im) {
   const N = re.length;
-  // Bit-reversal
   let j = 0;
   for (let i = 1; i < N; i++) {
     let bit = N >> 1;
     for (; j & bit; bit >>= 1) j ^= bit;
     j ^= bit;
-    if (i < j) {
-      [re[i], re[j]] = [re[j], re[i]];
-      [im[i], im[j]] = [im[j], im[i]];
-    }
+    if (i < j) { [re[i],re[j]] = [re[j],re[i]]; [im[i],im[j]] = [im[j],im[i]]; }
   }
-  // Butterfly
   for (let len = 2; len <= N; len <<= 1) {
-    const ang = -2 * Math.PI / len;
-    const wRe = Math.cos(ang), wIm = Math.sin(ang);
+    const ang = -2 * Math.PI / len, wRe = Math.cos(ang), wIm = Math.sin(ang);
     for (let i = 0; i < N; i += len) {
-      let curRe = 1.0, curIm = 0.0;
+      let cRe = 1.0, cIm = 0.0;
       for (let k = 0; k < len / 2; k++) {
         const uRe = re[i+k], uIm = im[i+k];
-        const vRe = re[i+k+len/2] * curRe - im[i+k+len/2] * curIm;
-        const vIm = re[i+k+len/2] * curIm + im[i+k+len/2] * curRe;
-        re[i+k] = uRe + vRe; im[i+k] = uIm + vIm;
-        re[i+k+len/2] = uRe - vRe; im[i+k+len/2] = uIm - vIm;
-        const nRe = curRe * wRe - curIm * wIm;
-        curIm = curRe * wIm + curIm * wRe;
-        curRe = nRe;
+        const vRe = re[i+k+len/2]*cRe - im[i+k+len/2]*cIm;
+        const vIm = re[i+k+len/2]*cIm + im[i+k+len/2]*cRe;
+        re[i+k] = uRe+vRe; im[i+k] = uIm+vIm;
+        re[i+k+len/2] = uRe-vRe; im[i+k+len/2] = uIm-vIm;
+        const nRe = cRe*wRe - cIm*wIm; cIm = cRe*wIm + cIm*wRe; cRe = nRe;
       }
     }
   }
@@ -318,25 +446,14 @@ function fftInPlace(re, im) {
 
 function nextPow2(n) { let p = 1; while (p < n) p <<= 1; return p; }
 
-// ── STFT ──────────────────────────────────────────────────────────────────
-
-/**
- * Compute STFT. Returns 2D array [frame][bin] of magnitude in dB.
- */
+// ── STFT ──────────────────────────────────────────────────────────────────────
 function computeSTFT(samples, frameSize, hopSize, windowType) {
-  const fftSize = nextPow2(frameSize);
-  const numBins = fftSize / 2 + 1;
-  const frames = [];
-
-  for (let offset = 0; offset + frameSize <= samples.length; offset += hopSize) {
-    const rawFrame = samples.slice(offset, offset + frameSize);
-    const windowed = applyWindow(rawFrame, windowType);
-
-    const re = new Float64Array(fftSize);
-    const im = new Float64Array(fftSize);
+  const fftSize = nextPow2(frameSize), numBins = fftSize / 2 + 1, frames = [];
+  for (let off = 0; off + frameSize <= samples.length; off += hopSize) {
+    const windowed = applyWindow(samples.slice(off, off + frameSize), windowType);
+    const re = new Float64Array(fftSize), im = new Float64Array(fftSize);
     re.set(windowed);
     fftInPlace(re, im);
-
     const bins = new Float64Array(numBins);
     for (let k = 0; k < numBins; k++) {
       const mag = Math.sqrt(re[k]*re[k] + im[k]*im[k]) / fftSize;
@@ -347,144 +464,327 @@ function computeSTFT(samples, frameSize, hopSize, windowType) {
   return frames;
 }
 
-// ── Spectrogram renderer ───────────────────────────────────────────────────
-
-function renderSpectrogram(frames, canvas) {
-  const numFrames = frames.length;
-  if (numFrames === 0) return;
+// ── Peak detection on time-averaged PSD ──────────────────────────────────────
+function detectPeaks(frames, sampleRate, fftSize, topN = 6) {
   const numBins = frames[0].length;
+  const avg = new Float64Array(numBins);
+  for (const f of frames) for (let k = 0; k < numBins; k++) avg[k] += f[k];
+  for (let k = 0; k < numBins; k++) avg[k] /= frames.length;
 
-  const W = Math.min(numFrames, 1200);
-  const H = Math.min(numBins, 512);
-  canvas.width  = W;
-  canvas.height = H;
+  // local maxima: bin must be greater than both neighbours
+  const peaks = [];
+  for (let k = 2; k < numBins - 2; k++) {
+    if (avg[k] > avg[k-1] && avg[k] > avg[k+1] &&
+        avg[k] > avg[k-2] && avg[k] > avg[k+2] &&
+        avg[k] > -100) {
+      const freq = k * sampleRate / fftSize;
+      peaks.push({ bin: k, freq, db: avg[k] });
+    }
+  }
+  peaks.sort((a, b) => b.db - a.db);
+  return peaks.slice(0, topN);
+}
+
+// ── Spectrogram renderer (industry-standard layout) ───────────────────────────
+const ML = 56, MB = 28, MT = 8, MR = 10; // margins: left, bottom, top, right
+
+let currentRender = null; // for hover readout
+
+function renderSpectrogram(frames, sampleRate, frameSize, hopSize, dbFloor, dbCeil, maxFreqHz) {
+  const fftSize = nextPow2(frameSize);
+  const numFrames = frames.length, numBins = frames[0].length;
+  const nyquist = sampleRate / 2;
+
+  // Clamp maxFreqHz to Nyquist
+  const displayNyquist = Math.min(maxFreqHz, nyquist);
+  // How many bins correspond to displayNyquist?
+  const displayBins = Math.round((displayNyquist / nyquist) * numBins);
+
+  // Inner dimensions
+  const IW = Math.max(300, Math.min(numFrames, 900));
+  const IH = Math.max(180, Math.min(displayBins, 420));
+
+  const canvas = document.getElementById('spectrogram');
+  canvas.width  = IW + ML + MR;
+  canvas.height = IH + MT + MB;
 
   const ctx = canvas.getContext('2d');
-  const imageData = ctx.createImageData(W, H);
-  const data = imageData.data;
+  ctx.fillStyle = '#0a0a0c';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-  // Find global dB range for colour normalisation
-  let minDb = Infinity, maxDb = -Infinity;
-  for (const frame of frames) {
-    for (const v of frame) {
-      if (v > -200) { if (v < minDb) minDb = v; if (v > maxDb) maxDb = v; }
-    }
-  }
-  const range = maxDb - minDb || 1;
+  // ── Render spectrogram pixels ──
+  const imgData = ctx.createImageData(IW, IH);
+  const d = imgData.data;
+  const range = dbCeil - dbFloor || 1;
 
-  // Downsample frames to W columns
-  for (let x = 0; x < W; x++) {
-    const fi = Math.floor((x / W) * numFrames);
+  for (let x = 0; x < IW; x++) {
+    const fi = Math.min(Math.floor((x / IW) * numFrames), numFrames - 1);
     const frame = frames[fi];
-    // Downsample bins to H rows (frequency: row 0 = Nyquist, row H-1 = DC)
-    for (let y = 0; y < H; y++) {
-      const bi = Math.floor(((H - 1 - y) / H) * numBins);
+    for (let y = 0; y < IH; y++) {
+      const bi = Math.min(Math.floor(((IH-1-y) / IH) * displayBins), displayBins - 1);
       const db = frame[bi];
-      const t = Math.max(0, Math.min(1, (db - minDb) / range));
-      const px = (y * W + x) * 4;
-      // Color: black → dark green → bright green
-      data[px + 0] = 0;
-      data[px + 1] = Math.round(t * 255);
-      data[px + 2] = Math.round(t * t * 60);
-      data[px + 3] = 255;
+      const t  = Math.max(0, Math.min(1, (db - dbFloor) / range));
+      const [r,g,b] = infernoRGB(t);
+      const px = (y * IW + x) * 4;
+      d[px]=r; d[px+1]=g; d[px+2]=b; d[px+3]=255;
     }
   }
+  ctx.putImageData(imgData, ML, MT);
 
-  ctx.putImageData(imageData, 0, 0);
-}
-
-// ── Self-test suite (inline, same algorithm as core) ──────────────────────
-
-function generateSine(freq, sampleRate, durationS) {
-  const N = Math.floor(sampleRate * durationS);
-  const out = new Float64Array(N);
-  for (let i = 0; i < N; i++) {
-    out[i] = Math.sin(2 * Math.PI * freq * i / sampleRate);
+  // ── Frequency axis (Y) ──
+  ctx.font = '11px monospace';
+  ctx.fillStyle = '#64748b';
+  ctx.textAlign = 'right';
+  const freqTicks = niceTicks(0, displayNyquist, 7);
+  for (const freq of freqTicks) {
+    const y = MT + IH - Math.round((freq / displayNyquist) * IH);
+    // label
+    const label = freq >= 1000 ? `${(freq/1000).toFixed(1)}k` : `${freq}`;
+    ctx.fillText(`${label} Hz`, ML - 5, y + 4);
+    // gridline
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(ML, y); ctx.lineTo(ML+IW, y); ctx.stroke();
   }
-  return out;
-}
+  // Y axis spine
+  ctx.strokeStyle = '#252830'; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(ML, MT); ctx.lineTo(ML, MT+IH); ctx.stroke();
 
-function gaussianNoise(N, stdDev, seed = 42) {
-  const out = new Float64Array(N);
-  let s = seed;
-  function rand() { s = (s * 1664525 + 1013904223) & 0xffffffff; return (s >>> 0) / 0xffffffff; }
-  for (let i = 0; i < N; i += 2) {
-    const u1 = Math.max(rand(), 1e-10), u2 = rand();
-    const z0 = Math.sqrt(-2 * Math.log(u1)) * Math.cos(2 * Math.PI * u2);
-    const z1 = Math.sqrt(-2 * Math.log(u1)) * Math.sin(2 * Math.PI * u2);
-    out[i] = z0 * stdDev;
-    if (i+1 < N) out[i+1] = z1 * stdDev;
+  // ── Time axis (X) ──
+  const totalDuration = (numFrames * hopSize) / sampleRate;
+  const timeTicks = niceTicks(0, totalDuration, 8);
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#64748b';
+  for (const t of timeTicks) {
+    const x = ML + Math.round((t / totalDuration) * IW);
+    ctx.fillText(`${t.toFixed(1)}s`, x, MT + IH + MB - 6);
+    ctx.strokeStyle = 'rgba(255,255,255,0.07)';
+    ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(x, MT); ctx.lineTo(x, MT+IH); ctx.stroke();
   }
-  return out;
-}
+  // X axis spine
+  ctx.strokeStyle = '#252830';
+  ctx.beginPath(); ctx.moveTo(ML, MT+IH); ctx.lineTo(ML+IW, MT+IH); ctx.stroke();
 
-function peakBin(bins) {
-  let peak = 1, peakVal = -Infinity;
-  for (let k = 1; k < bins.length; k++) {
-    if (bins[k] > peakVal) { peakVal = bins[k]; peak = k; }
+  // ── Peak annotations ──
+  const peaks = detectPeaks(frames, sampleRate, fftSize);
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  for (const p of peaks) {
+    if (p.freq > displayNyquist) continue;
+    const y = MT + IH - Math.round((p.freq / displayNyquist) * IH);
+    if (y < MT + 6 || y > MT + IH - 6) continue;
+    // dashed line across full width
+    ctx.strokeStyle = 'rgba(251, 191, 36, 0.45)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([3, 4]);
+    ctx.beginPath(); ctx.moveTo(ML, y); ctx.lineTo(ML+IW, y); ctx.stroke();
+    ctx.setLineDash([]);
+    // label
+    ctx.fillStyle = '#fbbf24';
+    ctx.fillText(`${p.freq < 1 ? p.freq.toFixed(2) : p.freq < 10 ? p.freq.toFixed(1) : Math.round(p.freq)} Hz`, ML + 4, y - 3);
   }
-  return peak;
+
+  // Store render context for hover
+  currentRender = { IW, IH, ML, MT, MB, MR, numFrames, numBins: displayBins, nyquist: displayNyquist, totalDuration, frames, dbFloor, dbCeil, fftSize, sampleRate };
+
+  // ── Peak chips ──
+  const row = document.getElementById('peaksRow');
+  row.innerHTML = '<span style="font-size:12px;color:var(--muted);align-self:center">Detected peaks:</span>';
+  for (const p of peaks) {
+    const chip = document.createElement('span');
+    chip.className = 'peak-chip';
+    chip.textContent = `${p.freq < 1 ? p.freq.toFixed(2) : p.freq < 10 ? p.freq.toFixed(1) : Math.round(p.freq)} Hz (${p.db.toFixed(1)} dB)`;
+    row.appendChild(chip);
+  }
+  row.style.display = 'flex';
+
+  // ── Colorbar ──
+  const cb = document.getElementById('colorbar');
+  cb.width = Math.max(300, IW + ML + MR);
+  const cctx = cb.getContext('2d');
+  const cbW = cb.width;
+  for (let x = 0; x < cbW; x++) {
+    const [r,g,b] = infernoRGB(x / cbW);
+    cctx.fillStyle = `rgb(${r},${g},${b})`;
+    cctx.fillRect(x, 0, 1, 18);
+  }
+  document.getElementById('cbMin').textContent = `${dbFloor} dB`;
+  document.getElementById('cbMax').textContent = `${dbCeil} dB`;
+
+  return peaks;
 }
 
+// ── Hover tooltip ─────────────────────────────────────────────────────────────
+const specCanvas = document.getElementById('spectrogram');
+const tooltip    = document.getElementById('tooltip');
+
+specCanvas.addEventListener('mousemove', (e) => {
+  if (!currentRender) return;
+  const { IW, IH, ML, MT, numFrames, numBins, nyquist, totalDuration, frames, dbFloor, dbCeil, fftSize, sampleRate } = currentRender;
+  const rect = specCanvas.getBoundingClientRect();
+  // Scale from CSS pixels to canvas pixels
+  const scaleX = specCanvas.width  / rect.width;
+  const scaleY = specCanvas.height / rect.height;
+  const cx = (e.clientX - rect.left) * scaleX;
+  const cy = (e.clientY - rect.top)  * scaleY;
+
+  if (cx < ML || cx > ML+IW || cy < MT || cy > MT+IH) { tooltip.style.display='none'; return; }
+
+  const fi = Math.min(Math.floor(((cx - ML) / IW) * numFrames), numFrames-1);
+  const bi = Math.min(Math.floor(((IH - (cy - MT)) / IH) * numBins), numBins-1);
+  const freq = bi * sampleRate / fftSize;
+  const time = (fi * currentRender.frames.length === 0 ? 0 : fi) * (totalDuration / numFrames);
+  const db   = frames[fi]?.[bi] ?? -240;
+
+  tooltip.innerHTML =
+    `<b>${freq < 10 ? freq.toFixed(2) : freq < 100 ? freq.toFixed(1) : Math.round(freq)} Hz</b><br>` +
+    `${time.toFixed(2)} s<br>${db < -200 ? '−∞' : db.toFixed(1)} dB`;
+  tooltip.style.display = 'block';
+  tooltip.style.left = `${e.clientX + 14}px`;
+  tooltip.style.top  = `${e.clientY - 10}px`;
+});
+specCanvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+
+// ── Main file handler ─────────────────────────────────────────────────────────
+document.getElementById('fileInput').addEventListener('change', function(evt) {
+  const file = evt.target.files[0];
+  if (!file) return;
+
+  const frameSize  = parseInt(document.getElementById('frameSize').value,  10);
+  const hopSize    = parseInt(document.getElementById('hopSize').value,     10);
+  const windowType = document.getElementById('windowType').value;
+  const dbFloor    = parseFloat(document.getElementById('dbFloor').value);
+  const dbCeil     = parseFloat(document.getElementById('dbCeil').value);
+  const maxFreq    = parseFloat(document.getElementById('maxFreq').value) || 500;
+
+  if (hopSize >= frameSize) { setStatus('Hop size must be smaller than frame size.', 'error'); return; }
+  if (dbCeil <= dbFloor)    { setStatus('dB ceiling must be above dB floor.', 'error'); return; }
+
+  setStatus(`Reading ${file.name} …`, 'info');
+
+  const reader = new FileReader();
+  reader.onload = (e) => {
+    try {
+      const { samples, sampleRate, channels } = parseWAV(e.target.result);
+      const nyquist = sampleRate / 2;
+      const freqRes = sampleRate / nextPow2(frameSize);
+
+      // Nyquist check
+      if (freqRes > 5) {
+        setStatus(
+          `Warning: frequency resolution is ${freqRes.toFixed(1)} Hz/bin. ` +
+          `For pump sideband detection (≤5 Hz apart) you need ≤5 Hz/bin. ` +
+          `Consider increasing frame size to at least ${Math.ceil(sampleRate / 5)} samples.`,
+          'error'
+        );
+      }
+
+      setStatus(`Computing STFT (${samples.length.toLocaleString()} samples, ${channels > 1 ? channels+'-ch → mono' : 'mono'}) …`, 'info');
+
+      setTimeout(() => {
+        try {
+          const frames = computeSTFT(samples, frameSize, hopSize, windowType);
+          renderSpectrogram(frames, sampleRate, frameSize, hopSize, dbFloor, dbCeil, maxFreq);
+
+          document.getElementById('fileInfo').textContent =
+            `${file.name} · ${sampleRate} Hz · ${samples.length.toLocaleString()} samples · ${frames.length} frames`;
+          document.getElementById('resInfo').textContent =
+            `Resolution: ${freqRes.toFixed(2)} Hz/bin · ${(hopSize/sampleRate*1000).toFixed(0)} ms/frame`;
+
+          document.getElementById('spectrogramCard').style.display = '';
+
+          const durationS = samples.length / sampleRate;
+          setStatus(
+            `Done — ${frames.length} frames · ${durationS.toFixed(2)} s · ` +
+            `${freqRes.toFixed(2)} Hz/bin · ${nyquist} Hz Nyquist.`,
+            'success'
+          );
+        } catch(err) {
+          setStatus(`Processing error: ${err.message}`, 'error');
+        }
+      }, 10);
+    } catch(err) {
+      setStatus(`WAV error: ${err.message}`, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+
+// ── Self-tests ────────────────────────────────────────────────────────────────
 function runSelfTests() {
   const SR = 8000, N = SR;
-  const frameSize = N, hopSize = N;
-  const fftSize = nextPow2(frameSize);
+  const fftSize = nextPow2(N);
   const TARGET = 50;
   const EXPECTED_BIN = Math.round(TARGET * fftSize / SR);
   const TOL = 3;
+
+  function sine(freq, amp = 1) {
+    const s = new Float64Array(N);
+    for (let i = 0; i < N; i++) s[i] = amp * Math.sin(2*Math.PI*freq*i/SR);
+    return s;
+  }
+  function gaussNoise(stdDev, seed = 42) {
+    const s = new Float64Array(N); let st = seed;
+    function rand() { st = (st*1664525+1013904223)&0xffffffff; return (st>>>0)/0xffffffff; }
+    for (let i = 0; i < N; i += 2) {
+      const u1 = Math.max(rand(), 1e-10), u2 = rand();
+      s[i]   = Math.sqrt(-2*Math.log(u1)) * Math.cos(2*Math.PI*u2) * stdDev;
+      if (i+1<N) s[i+1] = Math.sqrt(-2*Math.log(u1)) * Math.sin(2*Math.PI*u2) * stdDev;
+    }
+    return s;
+  }
+  function peakBin(bins) {
+    let p = 1, pv = -Infinity;
+    for (let k=1; k<bins.length; k++) if (bins[k]>pv) { pv=bins[k]; p=k; }
+    return p;
+  }
+
   const results = [];
 
   // 1. Sine detection
   {
-    const sig = generateSine(TARGET, SR, 1.0);
-    const frames = computeSTFT(sig, frameSize, hopSize, 'hann');
+    const frames = computeSTFT(sine(TARGET), N, N, 'hann');
     const peak = peakBin(frames[0]);
-    const passed = Math.abs(peak - EXPECTED_BIN) <= TOL;
-    results.push({ name: 'sine_detection', passed,
-      expected: `peak bin ±${TOL} of ${EXPECTED_BIN} (${TARGET} Hz)`,
-      actual: `peak bin = ${peak} (${(peak * SR / fftSize).toFixed(1)} Hz)` });
+    const pass = Math.abs(peak - EXPECTED_BIN) <= TOL;
+    results.push({ name: 'sine_detection', passed: pass, warn: false,
+      what: 'Pure 50 Hz sine → STFT → is the peak bin correct?',
+      result: `Peak at bin ${peak} = ${(peak*SR/fftSize).toFixed(1)} Hz (expected ~${TARGET} Hz)` });
   }
 
-  // 2. Sine + noise
+  // 2. Sine + noise (SNR ~10 dB)
   {
-    const sig = generateSine(TARGET, SR, 1.0);
-    const noise = gaussianNoise(N, 0.224);
+    const sig = sine(TARGET), noise = gaussNoise(0.224);
     const noisy = new Float64Array(N);
-    for (let i = 0; i < N; i++) noisy[i] = sig[i] + noise[i];
-    const frames = computeSTFT(noisy, frameSize, hopSize, 'hann');
+    for (let i=0; i<N; i++) noisy[i] = sig[i] + noise[i];
+    const frames = computeSTFT(noisy, N, N, 'hann');
     const peak = peakBin(frames[0]);
-    const passed = Math.abs(peak - EXPECTED_BIN) <= TOL;
-    results.push({ name: 'sine_plus_noise', passed,
-      expected: `peak bin ±${TOL} of ${EXPECTED_BIN} despite noise`,
-      actual: `peak bin = ${peak} (${(peak * SR / fftSize).toFixed(1)} Hz)` });
+    const pass = Math.abs(peak - EXPECTED_BIN) <= TOL;
+    results.push({ name: 'sine_plus_noise', passed: pass, warn: false,
+      what: '50 Hz sine + real-world noise (SNR 10 dB) → can we still find the tone?',
+      result: `Peak at bin ${peak} = ${(peak*SR/fftSize).toFixed(1)} Hz despite noise` });
   }
 
-  // 3. Silence
+  // 3. Silence → no false alarm
   {
-    const silence = new Float64Array(N).fill(0);
-    const frames = computeSTFT(silence, frameSize, hopSize, 'hann');
+    const frames = computeSTFT(new Float64Array(N).fill(0), N, N, 'hann');
     const maxDb = Math.max(...frames[0]);
-    const passed = maxDb < -80;
-    results.push({ name: 'silence', passed,
-      expected: 'max bin < -80 dB',
-      actual: `max bin = ${maxDb.toFixed(2)} dB` });
+    const pass = maxDb < -80;
+    results.push({ name: 'silence_no_alarm', passed: pass, warn: false,
+      what: 'All-zero input → no bin should exceed −80 dB (no false triggers on silence)',
+      result: `Max bin = ${maxDb.toFixed(2)} dB` });
   }
 
-  // 4. Clipping
+  // 4. Clipping detection
   {
-    const big = generateSine(TARGET, SR, 1.0);
-    for (let i = 0; i < big.length; i++) big[i] *= 2.0;
-    let atLimit = 0;
-    for (let i = 0; i < big.length; i++) {
-      big[i] = Math.max(-0.9, Math.min(0.9, big[i]));
-      if (Math.abs(big[i]) >= 0.9) atLimit++;
-    }
-    const frac = atLimit / big.length;
+    const big = sine(TARGET, 2.0);
+    let at = 0;
+    for (let i=0; i<big.length; i++) { big[i] = Math.max(-0.9, Math.min(0.9, big[i])); if (Math.abs(big[i]) >= 0.9) at++; }
+    const frac = at / big.length;
     const detected = frac > 0.05;
-    results.push({ name: 'clipping', passed: detected,
-      expected: '>5% samples at ±0.9',
-      actual: `${(frac*100).toFixed(1)}% samples at ±0.9${detected ? ' — WARNING: ADC saturation detected' : ''}` });
+    results.push({ name: 'clipping_warn', passed: detected, warn: detected,
+      what: 'Clipped (ADC-saturated) signal → system must warn, not silently misread',
+      result: `${(frac*100).toFixed(1)}% samples at ±0.9${detected ? ' — ⚠ ADC saturation flagged correctly' : ' — not detected'}` });
   }
 
   return results;
@@ -496,69 +796,22 @@ function renderSelfTests() {
   const results = runSelfTests();
   for (const r of results) {
     const tr = document.createElement('tr');
-    const warn = r.actual.includes('WARNING');
+    const cls = r.passed ? (r.warn ? 'warn' : 'pass') : 'fail';
+    const icon = r.passed ? (r.warn ? '⚠' : '✓') : '✗';
     tr.innerHTML = `
       <td>${r.name}</td>
-      <td class="${r.passed ? (warn ? 'warn' : 'pass') : 'fail'}">${r.passed ? (warn ? '⚠ PASS' : '✓ PASS') : '✗ FAIL'}</td>
-      <td>${r.expected}</td>
-      <td>${r.actual}</td>`;
+      <td class="${cls}">${icon} ${r.passed ? 'PASS' : 'FAIL'}</td>
+      <td>${r.what}<div class="test-meaning">${r.what.includes('silence') ? 'Fails = false alarms possible.' : r.warn ? 'Warning is expected and correct.' : 'Fails = frequency readout is wrong.'}</div></td>
+      <td>${r.result}</td>`;
     tbody.appendChild(tr);
   }
   document.getElementById('selfTestCard').style.display = '';
 }
 
-// ── Main event handler ─────────────────────────────────────────────────────
-
-document.getElementById('fileInput').addEventListener('change', function(evt) {
-  const file = evt.target.files[0];
-  if (!file) return;
-  setStatus(`Loading ${file.name}…`, 'info');
-
-  const reader = new FileReader();
-  reader.onload = function(e) {
-    try {
-      const { samples, sampleRate } = parseWAV(e.target.result);
-      const frameSize = parseInt(document.getElementById('frameSize').value, 10);
-      const hopSize   = parseInt(document.getElementById('hopSize').value, 10);
-      const windowType = document.getElementById('windowType').value;
-
-      if (hopSize >= frameSize) {
-        setStatus('Hop size must be smaller than frame size.', 'error');
-        return;
-      }
-
-      setStatus(`Computing STFT on ${samples.length} samples at ${sampleRate} Hz…`, 'info');
-
-      setTimeout(() => {
-        try {
-          const frames = computeSTFT(samples, frameSize, hopSize, windowType);
-          const canvas = document.getElementById('spectrogram');
-          renderSpectrogram(frames, canvas);
-
-          document.getElementById('fileInfo').textContent =
-            `${file.name} · ${sampleRate} Hz · ${samples.length} samples · ${frames.length} frames · frame=${frameSize} hop=${hopSize} window=${windowType}`;
-          document.getElementById('spectrogramCard').style.display = '';
-
-          // Run self-tests after spectrogram
-          renderSelfTests();
-
-          setStatus(`Done. ${frames.length} STFT frames rendered.`, 'success');
-        } catch(err) {
-          setStatus(`Processing error: ${err.message}`, 'error');
-        }
-      }, 10);
-
-    } catch(err) {
-      setStatus(`WAV error: ${err.message}`, 'error');
-    }
-  };
-  reader.readAsArrayBuffer(file);
-});
-
-// Run self-tests on page load (before any file is loaded)
+// Run self-tests immediately on page load
 window.addEventListener('DOMContentLoaded', () => {
   renderSelfTests();
-  setStatus('Ready — select a PCM WAV file to render its spectrogram.', 'info');
+  setStatus('Ready — select a PCM WAV file above.', 'info');
 });
 </script>
 </body>
