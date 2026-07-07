@@ -43,3 +43,49 @@ export interface AuditLogger {
   log(entry: AuditLogEntry): void;
   close(): void;
 }
+
+// ── Weekend 2 types ──────────────────────────────────────────────────────────
+
+export interface FrameRecord {
+  rawSamples: Float64Array;
+  bins: Float64Array;
+}
+
+export interface Baseline {
+  mu: Float64Array;
+  sigma: Float64Array;
+  numFrames: number;
+  frequencyResolution: number;
+  builtAt: string;
+}
+
+export interface FrameQuality {
+  score: number;
+  snrEstimate: number;
+  clippingFraction: number;
+  flags: string[];
+  usable: boolean;
+}
+
+export interface MahalanobisResult {
+  distance: number;
+  zScores: Float64Array;
+  maxAbsZ: number;
+  alertLevel: 'normal' | 'warning' | 'alert';
+  numBinsAlerting: number;
+}
+
+export interface CUSUMState {
+  S: Float64Array;
+  alertBins: Uint8Array;
+  delta: number;
+  threshold: number;
+  frameCount: number;
+}
+
+export interface CalibrationResult {
+  measuredDb: number;
+  offsetDb: number;
+  snrAtRefHz: number;
+  valid: boolean;
+}
