@@ -1,0 +1,13 @@
+{
+  "name": "panaural",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "demo": "open packages/demo/demo.html"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
