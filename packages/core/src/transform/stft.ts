@@ -110,8 +110,10 @@ export function computeSTFT(samples: Float64Array, config: STFTConfig): STFTFram
     const frequencyBins = new Float64Array(numBins);
     for (let k = 0; k < numBins; k++) {
       const magnitude = Math.sqrt(re[k]! * re[k]! + im[k]! * im[k]!);
-      // Normalize by frame size; floor at very small values to avoid -Infinity
-      const normalized = magnitude / fftSize;
+      // Normalize by window length (frameSize), not zero-padded FFT size.
+      // Per FMP Erlangen standard: |X| / N where N = window length.
+      // Dividing by fftSize introduces a constant -0.2 dB offset when fftSize > frameSize.
+      const normalized = magnitude / frameSize;
       frequencyBins[k] = normalized > 1e-12 ? 20 * Math.log10(normalized) : -240;
     }
 
