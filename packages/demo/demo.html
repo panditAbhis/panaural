@@ -2490,6 +2490,12 @@ function w3_importFromJSON(json) {
   return p;
 }
 
+function esc(str) {
+  var d = document.createElement('div');
+  d.textContent = String(str);
+  return d.innerHTML;
+}
+
 function w3_uuid() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
   return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
@@ -2561,17 +2567,40 @@ async function w3_renderLibrary() {
     var date = saved.savedAt.slice(0, 10);
     var freqRes = saved.baseline.frequencyResolution
       ? saved.baseline.frequencyResolution.toFixed(3) : '--';
-    tr.innerHTML =
-      '<td style="font-weight:600">' + saved.name + '</td>' +
-      '<td style="color:var(--muted)">' + saved.machineId + '</td>' +
-      '<td style="font-family:monospace">' + saved.baseline.numFrames + '</td>' +
-      '<td style="font-family:monospace">' + freqRes + '</td>' +
-      '<td style="font-family:monospace;color:var(--muted)">' + date + '</td>' +
-      '<td>' +
-        '<button class="w3-btn-load" data-id="' + saved.id + '" style="background:var(--blue);color:#000;border:none;border-radius:3px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px">Load</button>' +
-        '<button class="w3-btn-export" data-id="' + saved.id + '" style="background:var(--s3);color:#e4e4e7;border:1px solid var(--bd);border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px">Export JSON</button>' +
-        '<button class="w3-btn-delete" data-id="' + saved.id + '" data-name="' + saved.name.replace(/"/g, '&quot;') + '" style="background:transparent;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer">Delete</button>' +
-      '</td>';
+    var cells = [
+      { text: saved.name, style: 'font-weight:600' },
+      { text: saved.machineId, style: 'color:var(--muted)' },
+      { text: String(saved.baseline.numFrames), style: 'font-family:monospace' },
+      { text: freqRes, style: 'font-family:monospace' },
+      { text: date, style: 'font-family:monospace;color:var(--muted)' },
+    ];
+    cells.forEach(function(c) {
+      var td = document.createElement('td');
+      td.style.cssText = c.style;
+      td.textContent = c.text;
+      tr.appendChild(td);
+    });
+    var tdAct = document.createElement('td');
+    var btnLoad = document.createElement('button');
+    btnLoad.className = 'w3-btn-load';
+    btnLoad.dataset.id = saved.id;
+    btnLoad.textContent = 'Load';
+    btnLoad.style.cssText = 'background:var(--blue);color:#000;border:none;border-radius:3px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px';
+    var btnExp = document.createElement('button');
+    btnExp.className = 'w3-btn-export';
+    btnExp.dataset.id = saved.id;
+    btnExp.textContent = 'Export JSON';
+    btnExp.style.cssText = 'background:var(--s3);color:#e4e4e7;border:1px solid var(--bd);border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px';
+    var btnDel = document.createElement('button');
+    btnDel.className = 'w3-btn-delete';
+    btnDel.dataset.id = saved.id;
+    btnDel.dataset.name = saved.name;
+    btnDel.textContent = 'Delete';
+    btnDel.style.cssText = 'background:transparent;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer';
+    tdAct.appendChild(btnLoad);
+    tdAct.appendChild(btnExp);
+    tdAct.appendChild(btnDel);
+    tr.appendChild(tdAct);
     tbody.appendChild(tr);
   }
 }
@@ -2602,13 +2631,21 @@ async function w3_renderLog() {
     var top = (s.topBins && s.topBins[0])
       ? (s.topBins[0].freq.toFixed(1) + ' Hz  z=' + s.topBins[0].z.toFixed(1))
       : '--';
-    tr.innerHTML =
-      '<td style="font-family:monospace;font-size:11px">' + s.detectedAt.slice(0,16).replace('T',' ') + '</td>' +
-      '<td style="font-family:monospace;font-size:11px;color:var(--muted)">' + s.sourceFile + '</td>' +
-      '<td style="font-weight:700;color:' + (alrtClr[s.alertLevel] || 'inherit') + '">' + s.alertLevel.toUpperCase() + '</td>' +
-      '<td style="font-family:monospace">' + s.maxAbsZ.toFixed(2) + '</td>' +
-      '<td style="font-family:monospace">' + s.cusumAlertBins + '</td>' +
-      '<td style="font-family:monospace;font-size:11px">' + top + '</td>';
+    var alertColor = alrtClr[s.alertLevel] || 'inherit';
+    var logCells = [
+      { text: s.detectedAt.slice(0,16).replace('T',' '), style: 'font-family:monospace;font-size:11px' },
+      { text: s.sourceFile, style: 'font-family:monospace;font-size:11px;color:var(--muted)' },
+      { text: s.alertLevel.toUpperCase(), style: 'font-weight:700;color:' + alertColor },
+      { text: s.maxAbsZ.toFixed(2), style: 'font-family:monospace' },
+      { text: String(s.cusumAlertBins), style: 'font-family:monospace' },
+      { text: top, style: 'font-family:monospace;font-size:11px' },
+    ];
+    logCells.forEach(function(c) {
+      var td = document.createElement('td');
+      td.style.cssText = c.style;
+      td.textContent = c.text;
+      tr.appendChild(td);
+    });
     tbody.appendChild(tr);
   }
 }
