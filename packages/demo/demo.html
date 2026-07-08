@@ -261,7 +261,7 @@
 
 <h1>Panaural</h1>
 <p style="color:var(--muted);font-size:13px;margin-top:2px">
-  Acoustic condition monitoring &middot; Weekend 1 &mdash; STFT Spectrogram + Education
+  Acoustic condition monitoring &middot; Spectrum analysis &middot; Drift detection &middot; Baseline persistence
 </p>
 
 <div class="ius">
@@ -318,7 +318,7 @@ Source: ISO 13373-2 requires &le; 1 Hz/bin for bearing sideband detection</div>
       <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Flat sensor response</span><span class="an">Consumer USB mic: &pm;10 dB variation. Professional IEPE sensor: &pm;0.5 dB. Magnitude is unreliable for absolute comparison.</span></div></div>
       <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Physical units</span><span class="an">ISO 20816 measures vibration velocity in mm/s RMS. We measure sound pressure. Different physical quantity &mdash; non-standard for machine condition reporting.</span></div></div>
       <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Uncertainty budget</span><span class="an">No GUM-compliant uncertainty analysis. ISO 17025 accreditation demands documented uncertainty for every parameter.</span></div></div>
-      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Cepstrum analysis</span><span class="an">Standard algorithm for bearing faults is the cepstrum (IFFT of log spectrum). Isolates harmonic families automatically. Not implemented until Weekend 3.</span></div></div>
+      <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Cepstrum analysis</span><span class="an">Standard algorithm for bearing faults is the cepstrum (IFFT of log spectrum). Isolates harmonic families automatically. Not yet implemented.</span></div></div>
       <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Order tracking</span><span class="an">No tachometer &rarr; cannot track harmonics relative to actual shaft speed. Critical for VFD-controlled pumps.</span></div></div>
       <div class="audit-row"><span class="badge b-fail">GAP</span><div><span class="al">Multi-channel</span><span class="an">Professional: 3-axis accelerometer at each bearing housing. Panaural: single acoustic source. Bearing location identification impossible from one channel.</span></div></div>
     </div>
@@ -346,9 +346,17 @@ Source: ISO 13373-2 requires &le; 1 Hz/bin for bearing sideband detection</div>
 </details>
 
 <!-- ================================================================== -->
-<!--  EDUCATION                                                          -->
+<!--  LEARNING GUIDE (single collapsed accordion)                       -->
 <!-- ================================================================== -->
-<div class="section-label" style="margin-top:20px">Understanding the technology</div>
+<div class="section-label" style="margin-top:20px">Learning Guide</div>
+<details>
+  <summary style="font-size:14px;font-weight:700;cursor:pointer;list-style:none;display:flex;align-items:center;justify-content:space-between;padding:10px 0">
+    Expand to study concepts, mathematics, and industrial context &mdash; 24 in-depth entries
+    <span class="toggle"></span>
+  </summary>
+  <div style="margin-top:8px">
+
+<div class="section-label" style="margin-top:12px">Understanding the technology</div>
 
 <details>
   <summary>
@@ -989,7 +997,7 @@ For pump monitoring:
 <details>
   <summary>
     G7 &mdash; Baseline modelling and drift detection &mdash; the statistics of "normal"
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1070,7 +1078,7 @@ A drift of 2*delta (2x the slack) triggers alert in roughly h/delta frames.</div
 <details>
   <summary>
     G8 &mdash; Calibration protocol &mdash; making measurements comparable across sessions
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1113,7 +1121,7 @@ Now sessions A and B are comparable.</div>
 <details>
   <summary>
     G9 &mdash; Frame quality scoring &mdash; rejecting bad data before it corrupts the baseline
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1152,7 +1160,7 @@ Between 10-15 dB: flag as low quality, include with reduced weight.</div>
 <details>
   <summary>
     G10 &mdash; Uncertainty quantification &mdash; knowing what you do not know
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1307,7 +1315,7 @@ Cage fault (early warning, very low amplitude):
 <details>
   <summary>
     G-Q &mdash; Frame quality scoring &mdash; why not all recorded frames are usable
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1366,7 +1374,7 @@ Example &mdash; frame has no flags:
 <details>
   <summary>
     G-B &mdash; Building a statistical baseline &mdash; what "normal" looks like in numbers
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1412,7 +1420,7 @@ Collect over multiple hours or days to capture load and temperature variation.</
 <details>
   <summary>
     G-M &mdash; Mahalanobis distance &mdash; "how unusual is this frame?"
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1461,7 +1469,7 @@ Worked example: bearing sideband appears at bin 86 (BPFO &asymp; 84 Hz)
 <details>
   <summary>
     G-C &mdash; CUSUM drift detection &mdash; catching slow trends Mahalanobis misses
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1511,7 +1519,7 @@ Result: S stays at 0 forever &mdash; no alert for healthy variation</div>
 <details>
   <summary>
     G-R &mdash; Reference-tone calibration &mdash; making sessions comparable
-    <span class="badge b-edu" style="margin-left:6px">Weekend 2</span>
+    <span class="badge b-edu" style="margin-left:6px">Drift Detection</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1556,16 +1564,16 @@ SNR check: if the tone is not at least 20 dB above background noise, the
 </details>
 
 <!-- ================================================================== -->
-<!--  WEEKEND 3 TEACHING BLOCK                                          -->
+<!--  PERSISTENCE TEACHING BLOCK                                        -->
 <!-- ================================================================== -->
-<div class="section-label" style="margin-top:20px">Weekend 3 — Persistent Baseline Library</div>
+<div class="section-label" style="margin-top:20px">Baseline Persistence</div>
 
 <div class="card">
-  <h2>What Weekend 3 Adds</h2>
-  <p>Weekends 1 and 2 built the measurement engine. But every time you refreshed the page, your
-  baseline disappeared. This is the core limitation of in-memory storage: it is fast, but it
-  has no memory across sessions.</p>
-  <p>Weekend 3 adds <strong>persistence</strong>: your baselines are now saved to
+  <h2>Baseline Persistence — what it is and why it matters</h2>
+  <p>Spectrum analysis and drift detection work in memory: once you close the tab, the baseline
+  is gone. This is the core limitation of in-memory storage &mdash; fast, but no memory across
+  sessions.</p>
+  <p>Persistence saves your baselines to
   <strong>IndexedDB</strong> &mdash; a structured database built into every modern browser. No server.
   No account. Data survives tab close, page refresh, and machine restart. You can name each
   baseline, tag it to a machine, add notes, and compare new recordings against baselines from
@@ -1616,7 +1624,7 @@ A single alert means little. Three escalating warnings mean act now.</div>
 <details>
   <summary>
     G-S &mdash; Named baseline library &mdash; why one baseline is never enough
-    <span class="badge b-edu" style="margin-left:6px">Weekend 3</span>
+    <span class="badge b-edu" style="margin-left:6px">Persistence</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1663,7 +1671,7 @@ Import: upload that JSON file on any machine running Panaural.
 <details>
   <summary>
     G-P &mdash; Persistence and longitudinal monitoring &mdash; how memory changes the tool
-    <span class="badge b-edu" style="margin-left:6px">Weekend 3</span>
+    <span class="badge b-edu" style="margin-left:6px">Persistence</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1717,7 +1725,7 @@ Size: ~1 KB. You can store 50,000 sessions per machine.</div>
 <details>
   <summary>
     G-L &mdash; Reading a detection history &mdash; spotting degradation trends over time
-    <span class="badge b-edu" style="margin-left:6px">Weekend 3</span>
+    <span class="badge b-edu" style="margin-left:6px">Persistence</span>
     <span class="toggle"></span>
   </summary>
   <div class="acc-body">
@@ -1761,6 +1769,9 @@ CUSUM ALERT BINS INCREASING OVER TIME:
       engineer must make the final maintenance decision. Never shut down machinery based solely
       on Panaural output without qualified sign-off.
     </div>
+  </div>
+</details>
+
   </div>
 </details>
 
