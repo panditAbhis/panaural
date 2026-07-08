@@ -89,3 +89,35 @@ export interface CalibrationResult {
   snrAtRefHz: number;
   valid: boolean;
 }
+
+// ── Weekend 3 types ──────────────────────────────────────────────────────────
+
+export interface SerializedBaseline {
+  mu: number[];
+  sigma: number[];
+  numFrames: number;
+  frequencyResolution: number;
+  builtAt: string;
+}
+
+export interface SavedBaseline {
+  id: string;
+  name: string;
+  machineId: string;
+  notes: string;
+  sourceFile: string;
+  baseline: SerializedBaseline;
+  savedAt: string;
+}
+
+export interface DetectionSession {
+  id: string;
+  baselineId: string;
+  sourceFile: string;
+  alertLevel: 'normal' | 'warning' | 'alert';
+  maxAbsZ: number;
+  numBinsAlerting: number;
+  cusumAlertBins: number;
+  topBins: Array<{ freq: number; z: number }>;
+  detectedAt: string;
+}
