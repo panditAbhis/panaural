@@ -1556,6 +1556,215 @@ SNR check: if the tone is not at least 20 dB above background noise, the
 </details>
 
 <!-- ================================================================== -->
+<!--  WEEKEND 3 TEACHING BLOCK                                          -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Weekend 3 — Persistent Baseline Library</div>
+
+<div class="card">
+  <h2>What Weekend 3 Adds</h2>
+  <p>Weekends 1 and 2 built the measurement engine. But every time you refreshed the page, your
+  baseline disappeared. This is the core limitation of in-memory storage: it is fast, but it
+  has no memory across sessions.</p>
+  <p>Weekend 3 adds <strong>persistence</strong>: your baselines are now saved to
+  <strong>IndexedDB</strong> &mdash; a structured database built into every modern browser. No server.
+  No account. Data survives tab close, page refresh, and machine restart. You can name each
+  baseline, tag it to a machine, add notes, and compare new recordings against baselines from
+  months ago.</p>
+  <p>This transforms Panaural from a one-shot analysis tool into a
+  <strong>longitudinal condition monitoring program</strong> &mdash; the kind that ISO 13373-2 requires
+  for serious predictive maintenance.</p>
+
+  <h3>What IndexedDB is (in two minutes)</h3>
+  <div class="mono-block">IndexedDB is a key-value store with indexes, built into every browser.
+Think of it as a small SQLite database that lives in your browser profile.
+
+Key properties:
+  Persistent:   data survives page refresh and browser restart
+  Structured:   you can store objects, not just strings
+  Indexed:      you can query by machineId, savedAt, baselineId
+  Private:      no data leaves your machine (no server involved)
+  Capacity:     50 MB+ per origin on most browsers (our baselines are ~65 KB each)
+  Async:        all operations return Promises (no blocking the UI)
+
+How Panaural uses it:
+  Object store "baselines"  -- one record per SavedBaseline (name + mu + sigma + metadata)
+  Object store "sessions"   -- one record per DetectionSession (results + FK to baseline)
+  deleteBaseline cascades:  deleting a baseline also deletes all its sessions</div>
+
+  <h3>The longitudinal monitoring workflow</h3>
+  <div class="mono-block">Week 0  (machine commissioned):
+  Load healthy WAV -&gt; Record Baseline -&gt; name "Pump A -- commissioning" -&gt; Save to Library
+
+Week 4  (first check):
+  Load new WAV -&gt; Load baseline from Library -&gt; Run Detection -&gt; NORMAL (maxAbsZ 0.3)
+  Session auto-saved to Detection Log.
+
+Week 12 (quarterly check):
+  Load new WAV -&gt; Load baseline -&gt; Run Detection -&gt; WARNING (maxAbsZ 3.4, bin at 84 Hz)
+  Cross-reference with BPFO = 84 Hz (Guide G11). Schedule bearing inspection.
+
+Week 16 (post-inspection):
+  Bearing replaced. New healthy recording.
+  Save new baseline: "Pump A -- post-bearing-replacement".
+  Old baseline kept for historical reference.
+
+The detection log tells the story of a machine's health over time.
+A single alert means little. Three escalating warnings mean act now.</div>
+</div>
+
+<!-- G-S: Named baseline library -->
+<details>
+  <summary>
+    G-S &mdash; Named baseline library &mdash; why one baseline is never enough
+    <span class="badge b-edu" style="margin-left:6px">Weekend 3</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>A single baseline captures the machine's spectrum at one moment in time, under one
+    set of conditions. Real machines are not that simple. Load changes. Temperature changes.
+    Operating speed changes. A baseline taken at 50% load will flag normal full-load operation
+    as an anomaly. A named baseline library lets you maintain separate references for each
+    operating condition.</p>
+
+    <h3>What to name your baselines</h3>
+    <div class="mono-block">Machine ID: the asset tag or pump number (e.g. "Pump A")
+Name:       condition + date (e.g. "Pump A -- full load -- 2026-07")
+Notes:      anything that would help you interpret an alert later:
+            "Ambient temp 28 C. Flow rate 120 L/min. Just serviced."
+
+Good baseline library for one pump:
+  "Pump A -- commissioning"         (the gold standard: new bearings, clean shaft)
+  "Pump A -- summer full load"      (high ambient temp, maximum flow)
+  "Pump A -- winter low load"       (cold start, 40% capacity)
+  "Pump A -- post-bearing-rpl"      (after first bearing replacement, new reference)
+
+Compare new recordings to the most appropriate baseline for the current conditions.</div>
+
+    <h3>Export/import for team sharing</h3>
+    <div class="mono-block">Export: downloads a JSON file containing the full baseline
+  (name, metadata, all 4097 mu values, all 4097 sigma values).
+  File size: ~130 KB uncompressed.
+
+Import: upload that JSON file on any machine running Panaural.
+  The baseline appears in the library immediately.
+  Use case: a lab technician builds the baseline in a controlled environment,
+  emails the JSON to the field engineer, who imports it on a laptop at the site.</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the patient's medical record:</strong> A doctor does not rely on
+      a single blood test. They compare today's result to the same patient's results from 6 months
+      ago, 1 year ago, after each treatment. The baseline library is the machine's medical record.
+      Without it, every reading is interpreted in a vacuum.
+    </div>
+  </div>
+</details>
+
+<!-- G-P: Persistence and longitudinal monitoring -->
+<details>
+  <summary>
+    G-P &mdash; Persistence and longitudinal monitoring &mdash; how memory changes the tool
+    <span class="badge b-edu" style="margin-left:6px">Weekend 3</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>Without persistence, every Panaural session is independent. You build a baseline, detect
+    drift, close the tab &mdash; everything is gone. The next session starts from scratch. This is fine
+    for a demo. It is useless for a maintenance program.</p>
+
+    <p>With persistence, Panaural gains <strong>institutional memory</strong>. The database
+    accumulates evidence over weeks and months. Patterns emerge that no single session could reveal.</p>
+
+    <h3>What IndexedDB stores for each baseline</h3>
+    <div class="mono-block">SavedBaseline record:
+  id:                  "a3f7c2d1-..."       (UUID, primary key)
+  name:                "Pump A -- summer"
+  machineId:           "Pump A"
+  notes:               "Flow 120 L/min, temp 28 C"
+  sourceFile:          "pump_a_2026_07.wav"
+  savedAt:             "2026-07-08T10:00:00Z"
+  baseline.mu:         [-18.5, -70.2, ..., -116.0]   (4097 values)
+  baseline.sigma:      [0.5, 0.5, ..., 1.2]           (4097 values)
+  baseline.numFrames:  30
+  baseline.freqRes:    0.977   (Hz/bin)
+
+Total record size: ~130 KB. Browser IndexedDB limit: 50 MB+.
+You can store ~400 baselines per machine before hitting limits.</div>
+
+    <h3>What IndexedDB stores for each detection session</h3>
+    <div class="mono-block">DetectionSession record:
+  id:              "b9e4a1f2-..."
+  baselineId:      "a3f7c2d1-..."    (links to the baseline used)
+  sourceFile:      "pump_a_2026_10.wav"
+  alertLevel:      "warning"
+  maxAbsZ:         3.7
+  numBinsAlerting: 2
+  cusumAlertBins:  1
+  topBins:         [{ freq: 84.2, z: 3.7 }, { freq: 168.4, z: 2.1 }]
+  detectedAt:      "2026-10-14T09:30:00Z"
+
+Size: ~1 KB. You can store 50,000 sessions per machine.</div>
+
+    <div class="callout">
+      <strong>Analogy &mdash; the pilot's logbook:</strong> A pilot is required to log every
+      flight: date, duration, aircraft, conditions. A single flight tells you nothing. The logbook
+      tells you total hours, recent experience, and trends. Panaural's detection log is the
+      machine's flight logbook &mdash; every inspection recorded, evidence accumulating.
+    </div>
+  </div>
+</details>
+
+<!-- G-L: Reading a detection history -->
+<details>
+  <summary>
+    G-L &mdash; Reading a detection history &mdash; spotting degradation trends over time
+    <span class="badge b-edu" style="margin-left:6px">Weekend 3</span>
+    <span class="toggle"></span>
+  </summary>
+  <div class="acc-body">
+    <p>A detection log is only useful if you know how to read it. A single alert can be a
+    microphone bump, a door slam during recording, or a genuine fault. Multiple sessions tell
+    a different story.</p>
+
+    <h3>The escalation pattern</h3>
+    <div class="mono-block">Date         Alert    maxAbsZ   Top frequency   Interpretation
+2026-07-08   NORMAL   0.3       49.8 Hz         Healthy. No action.
+2026-08-12   NORMAL   0.7       49.8 Hz         Healthy. Small increase -- monitor.
+2026-09-09   WARNING  3.4       84.2 Hz         New energy at 84 Hz. Cross-ref BPFO.
+2026-10-14   WARNING  4.1       84.2 Hz         BPFO growing. Schedule inspection.
+2026-11-11   ALERT    6.8       84.2 Hz         Bearing deterioration confirmed. Act now.
+
+The 84.2 Hz frequency is BPFO for a 6205-2RS bearing at 1450 RPM (see Guide G11).
+The escalating z-score at that frequency over 5 months is a textbook bearing fault curve.</div>
+
+    <h3>What to look for in the log</h3>
+    <div class="mono-block">MONOTONICALLY INCREASING maxAbsZ at the same frequency:
+  Almost certainly a developing mechanical fault at that frequency.
+  Action: schedule inspection, cross-reference with bearing fault formulas.
+
+SINGLE ISOLATED ALERT, then normal:
+  Likely environmental: mic bumped, door slam, pressure surge during recording.
+  Action: record again under identical conditions. If normal, discard the alert.
+
+BROADBAND INCREASE (many bins alerting):
+  Could be increased load, speed change, or loose mounting vibration.
+  Action: verify operating conditions match the baseline conditions.
+  If conditions match, inspect for structural looseness.
+
+CUSUM ALERT BINS INCREASING OVER TIME:
+  The CUSUM accumulator is filling -- slow monotonic drift.
+  Even if maxAbsZ looks OK each session individually, the trend is real.
+  Action: treat like a WARNING even if alertLevel shows NORMAL.</div>
+
+    <div class="callout amber">
+      <strong>Remember:</strong> Panaural is indicative only. A detection log showing escalating
+      warnings at a bearing frequency is strong evidence worth acting on &mdash; but a qualified
+      engineer must make the final maintenance decision. Never shut down machinery based solely
+      on Panaural output without qualified sign-off.
+    </div>
+  </div>
+</details>
+
+<!-- ================================================================== -->
 <!--  LOAD AUDIO                                                         -->
 <!-- ================================================================== -->
 <div class="section-label" style="margin-top:20px">Instrument</div>
@@ -1687,6 +1896,119 @@ SNR check: if the tone is not at least 20 dB above background noise, the
         identify the fault source.
       </p>
     </div>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--  SAVE BASELINE FORM                                                 -->
+<!-- ================================================================== -->
+<div class="card" id="saveBaselineCard" style="display:none">
+  <h2>Save Baseline to Library</h2>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+    Give this baseline a name so you can load it in future sessions. The name and machine ID
+    will appear in your Baseline Library. Notes are optional but recommended: record operating
+    conditions (load, temperature, flow rate) so you can match conditions when comparing later.
+  </p>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+    <div>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:4px">Baseline name (required)</label>
+      <input id="blName" type="text" placeholder="e.g. Pump A -- full load -- 2026-07"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);color:#e4e4e7;border-radius:4px;padding:7px 10px;font-size:13px;font-family:monospace" />
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:4px">Machine / Asset ID (required)</label>
+      <input id="blMachineId" type="text" placeholder="e.g. Pump A"
+        style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);color:#e4e4e7;border-radius:4px;padding:7px 10px;font-size:13px;font-family:monospace" />
+    </div>
+  </div>
+  <div style="margin-bottom:10px">
+    <label style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);display:block;margin-bottom:4px">Notes (optional)</label>
+    <textarea id="blNotes" placeholder="Operating conditions: load, temperature, flow rate, recent maintenance..."
+      style="width:100%;box-sizing:border-box;background:var(--s3);border:1px solid var(--bd);color:#e4e4e7;border-radius:4px;padding:7px 10px;font-size:13px;font-family:monospace;height:60px;resize:vertical"></textarea>
+  </div>
+  <div style="display:flex;align-items:center;gap:14px">
+    <button id="btnSaveBaseline" style="background:var(--blue);color:#000;border:none;border-radius:4px;padding:8px 18px;font-weight:700;font-size:13px;cursor:pointer">
+      Save to Library
+    </button>
+    <span id="saveBaselineStatus" style="font-size:12px;color:var(--muted);font-family:monospace"></span>
+  </div>
+</div>
+
+<!-- ================================================================== -->
+<!--  BASELINE LIBRARY                                                  -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Baseline Library</div>
+
+<div class="card" id="libraryCard">
+  <h2>Baseline Library</h2>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+    All baselines saved in this browser. Click <strong>Load</strong> to set a baseline as active
+    for detection. <strong>Export JSON</strong> downloads the baseline as a file you can share
+    or import on another machine. <strong>Delete</strong> removes the baseline and all its
+    detection sessions permanently.
+  </p>
+  <div style="display:flex;gap:8px;margin-bottom:12px">
+    <label style="background:var(--s3);border:1px solid var(--bd);border-radius:4px;padding:6px 14px;font-size:12px;font-weight:700;color:#e4e4e7;cursor:pointer">
+      Import JSON
+      <input type="file" id="importInput" accept=".json" style="display:none" />
+    </label>
+    <span id="importStatus" style="font-size:12px;color:var(--muted);font-family:monospace;align-self:center"></span>
+  </div>
+  <div id="libraryEmpty" style="font-size:13px;color:var(--muted);padding:12px 0">
+    No baselines saved yet. Record a baseline above and click "Save to Library".
+  </div>
+  <table id="libraryTable" style="display:none">
+    <thead>
+      <tr>
+        <th>Name</th>
+        <th>Machine</th>
+        <th>Frames</th>
+        <th>Hz/bin</th>
+        <th>Saved</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody id="libraryBody"></tbody>
+  </table>
+</div>
+
+<!-- ================================================================== -->
+<!--  DETECTION LOG                                                     -->
+<!-- ================================================================== -->
+<div class="section-label" style="margin-top:20px">Detection Log</div>
+
+<div class="card" id="logCard">
+  <h2>Detection Log</h2>
+  <p style="font-size:13px;color:var(--muted);margin-bottom:14px">
+    All detection sessions run against the currently active baseline.
+    Each row is one "Run Detection" call &mdash; the WAV file compared, the alert level,
+    the worst single-bin z-score (maxAbsZ), and the top alerting frequency.
+    A single alert may be noise. A trend of escalating values is a fault developing.
+    See Guide G-L for how to read this table.
+  </p>
+  <div id="logEmpty" style="font-size:13px;color:var(--muted);padding:12px 0">
+    No active baseline loaded from library. Load a baseline above to see its detection history.
+  </div>
+  <div id="logContent" style="display:none">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <span id="logBaselineName" style="font-size:12px;font-family:monospace;color:var(--blue)"></span>
+      <button id="btnClearLog" style="background:transparent;border:1px solid var(--bd);color:var(--muted);border-radius:4px;padding:4px 10px;font-size:11px;cursor:pointer">
+        Clear log
+      </button>
+    </div>
+    <table id="logTable">
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Source file</th>
+          <th>Alert</th>
+          <th>maxAbsZ</th>
+          <th>CUSUM bins</th>
+          <th>Top frequency</th>
+        </tr>
+      </thead>
+      <tbody id="logBody"></tbody>
+    </table>
   </div>
 </div>
 
@@ -2085,6 +2407,357 @@ function renderSelfTests() {
 window.addEventListener('DOMContentLoaded', () => {
   renderSelfTests();
   setStatus('Ready -- select a PCM WAV file above.', 'info');
+});
+
+// ── Weekend 3: IndexedDB Persistence ─────────────────────────────────────────
+
+const W3_DB_NAME = 'panaural-db';
+const W3_DB_VERSION = 1;
+let W3_db = null;
+let W3_activeBaselineId = null;
+let W3_activeLoadedFile = 'unknown.wav';
+
+function w3_req(request) {
+  return new Promise(function(resolve, reject) {
+    request.onsuccess = function() { resolve(request.result); };
+    request.onerror = function() { reject(request.error); };
+  });
+}
+function w3_txDone(tx) {
+  return new Promise(function(resolve, reject) {
+    tx.oncomplete = function() { resolve(); };
+    tx.onerror = function() { reject(tx.error); };
+    tx.onabort = function() { reject(tx.error); };
+  });
+}
+
+function w3_openDB() {
+  return new Promise(function(resolve, reject) {
+    var request = indexedDB.open(W3_DB_NAME, W3_DB_VERSION);
+    request.onupgradeneeded = function(event) {
+      var db = event.target.result;
+      if (!db.objectStoreNames.contains('baselines')) {
+        var bs = db.createObjectStore('baselines', { keyPath: 'id' });
+        bs.createIndex('machineId', 'machineId', { unique: false });
+        bs.createIndex('savedAt', 'savedAt', { unique: false });
+      }
+      if (!db.objectStoreNames.contains('sessions')) {
+        var ss = db.createObjectStore('sessions', { keyPath: 'id' });
+        ss.createIndex('baselineId', 'baselineId', { unique: false });
+        ss.createIndex('detectedAt', 'detectedAt', { unique: false });
+      }
+    };
+    request.onsuccess = function() { resolve(request.result); };
+    request.onerror = function() { reject(request.error); };
+  });
+}
+
+function w3_serializeBaseline(baseline) {
+  return {
+    mu: Array.from(baseline.mu),
+    sigma: Array.from(baseline.sigma),
+    numFrames: baseline.numFrames,
+    frequencyResolution: baseline.frequencyResolution || 0,
+    builtAt: baseline.builtAt,
+  };
+}
+function w3_deserializeBaseline(s) {
+  return {
+    mu: new Float64Array(s.mu),
+    sigma: new Float64Array(s.sigma),
+    numFrames: s.numFrames,
+    frequencyResolution: s.frequencyResolution,
+    builtAt: s.builtAt,
+  };
+}
+function w3_exportToJSON(saved) { return JSON.stringify(saved, null, 2); }
+function w3_importFromJSON(json) {
+  var p = JSON.parse(json);
+  var required = ['id','name','machineId','notes','sourceFile','baseline','savedAt'];
+  var missing = required.filter(function(k) { return !(k in p); });
+  if (missing.length) throw new Error('Missing required fields: ' + missing.join(', '));
+  return p;
+}
+
+function w3_uuid() {
+  if (typeof crypto !== 'undefined' && crypto.randomUUID) return crypto.randomUUID();
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    var r = Math.random() * 16 | 0;
+    return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+  });
+}
+
+async function w3_saveBaseline(saved) {
+  var tx = W3_db.transaction('baselines', 'readwrite');
+  await w3_req(tx.objectStore('baselines').put(saved));
+  await w3_txDone(tx);
+  return saved.id;
+}
+async function w3_listBaselines() {
+  var tx = W3_db.transaction('baselines', 'readonly');
+  var all = await w3_req(tx.objectStore('baselines').getAll());
+  return all.sort(function(a, b) { return b.savedAt.localeCompare(a.savedAt); });
+}
+async function w3_loadBaseline(id) {
+  var tx = W3_db.transaction('baselines', 'readonly');
+  var result = await w3_req(tx.objectStore('baselines').get(id));
+  return result || null;
+}
+async function w3_deleteBaseline(id) {
+  var stx = W3_db.transaction('sessions', 'readwrite');
+  var sessions = await w3_req(stx.objectStore('sessions').index('baselineId').getAll(id));
+  for (var i = 0; i < sessions.length; i++) stx.objectStore('sessions').delete(sessions[i].id);
+  await w3_txDone(stx);
+  var tx = W3_db.transaction('baselines', 'readwrite');
+  tx.objectStore('baselines').delete(id);
+  await w3_txDone(tx);
+}
+
+async function w3_saveSession(session) {
+  var tx = W3_db.transaction('sessions', 'readwrite');
+  await w3_req(tx.objectStore('sessions').put(session));
+  await w3_txDone(tx);
+  return session.id;
+}
+async function w3_listSessions(baselineId) {
+  var tx = W3_db.transaction('sessions', 'readonly');
+  var all = await w3_req(tx.objectStore('sessions').index('baselineId').getAll(baselineId));
+  return all.sort(function(a, b) { return b.detectedAt.localeCompare(a.detectedAt); });
+}
+async function w3_clearSessions(baselineId) {
+  var tx = W3_db.transaction('sessions', 'readwrite');
+  var store = tx.objectStore('sessions');
+  var sessions = await w3_req(store.index('baselineId').getAll(baselineId));
+  for (var i = 0; i < sessions.length; i++) store.delete(sessions[i].id);
+  await w3_txDone(tx);
+}
+
+async function w3_renderLibrary() {
+  if (!W3_db) return;
+  var list = await w3_listBaselines();
+  var empty = document.getElementById('libraryEmpty');
+  var table = document.getElementById('libraryTable');
+  var tbody = document.getElementById('libraryBody');
+  if (list.length === 0) {
+    empty.style.display = ''; table.style.display = 'none'; return;
+  }
+  empty.style.display = 'none'; table.style.display = '';
+  tbody.innerHTML = '';
+  for (var i = 0; i < list.length; i++) {
+    var saved = list[i];
+    var tr = document.createElement('tr');
+    if (saved.id === W3_activeBaselineId) tr.style.borderLeft = '3px solid var(--green)';
+    var date = saved.savedAt.slice(0, 10);
+    var freqRes = saved.baseline.frequencyResolution
+      ? saved.baseline.frequencyResolution.toFixed(3) : '--';
+    tr.innerHTML =
+      '<td style="font-weight:600">' + saved.name + '</td>' +
+      '<td style="color:var(--muted)">' + saved.machineId + '</td>' +
+      '<td style="font-family:monospace">' + saved.baseline.numFrames + '</td>' +
+      '<td style="font-family:monospace">' + freqRes + '</td>' +
+      '<td style="font-family:monospace;color:var(--muted)">' + date + '</td>' +
+      '<td>' +
+        '<button class="w3-btn-load" data-id="' + saved.id + '" style="background:var(--blue);color:#000;border:none;border-radius:3px;padding:3px 8px;font-size:11px;font-weight:700;cursor:pointer;margin-right:4px">Load</button>' +
+        '<button class="w3-btn-export" data-id="' + saved.id + '" style="background:var(--s3);color:#e4e4e7;border:1px solid var(--bd);border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer;margin-right:4px">Export JSON</button>' +
+        '<button class="w3-btn-delete" data-id="' + saved.id + '" data-name="' + saved.name.replace(/"/g, '&quot;') + '" style="background:transparent;color:var(--red);border:1px solid var(--red);border-radius:3px;padding:3px 8px;font-size:11px;cursor:pointer">Delete</button>' +
+      '</td>';
+    tbody.appendChild(tr);
+  }
+}
+
+async function w3_renderLog() {
+  if (!W3_db) return;
+  var empty = document.getElementById('logEmpty');
+  var content = document.getElementById('logContent');
+  if (!W3_activeBaselineId) {
+    empty.style.display = ''; content.style.display = 'none'; return;
+  }
+  var saved = await w3_loadBaseline(W3_activeBaselineId);
+  if (!saved) { empty.style.display = ''; content.style.display = 'none'; return; }
+  document.getElementById('logBaselineName').textContent =
+    'Active baseline: ' + saved.name + ' (' + saved.machineId + ')';
+  var sessions = await w3_listSessions(W3_activeBaselineId);
+  empty.style.display = 'none'; content.style.display = '';
+  var tbody = document.getElementById('logBody');
+  tbody.innerHTML = '';
+  if (sessions.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="6" style="color:var(--muted);font-size:12px">No detection sessions yet for this baseline.</td></tr>';
+    return;
+  }
+  var alrtClr = { normal: 'var(--green)', warning: 'var(--amber)', alert: 'var(--red)' };
+  for (var i = 0; i < sessions.length; i++) {
+    var s = sessions[i];
+    var tr = document.createElement('tr');
+    var top = (s.topBins && s.topBins[0])
+      ? (s.topBins[0].freq.toFixed(1) + ' Hz  z=' + s.topBins[0].z.toFixed(1))
+      : '--';
+    tr.innerHTML =
+      '<td style="font-family:monospace;font-size:11px">' + s.detectedAt.slice(0,16).replace('T',' ') + '</td>' +
+      '<td style="font-family:monospace;font-size:11px;color:var(--muted)">' + s.sourceFile + '</td>' +
+      '<td style="font-weight:700;color:' + (alrtClr[s.alertLevel] || 'inherit') + '">' + s.alertLevel.toUpperCase() + '</td>' +
+      '<td style="font-family:monospace">' + s.maxAbsZ.toFixed(2) + '</td>' +
+      '<td style="font-family:monospace">' + s.cusumAlertBins + '</td>' +
+      '<td style="font-family:monospace;font-size:11px">' + top + '</td>';
+    tbody.appendChild(tr);
+  }
+}
+
+document.getElementById('btnSaveBaseline').addEventListener('click', async function() {
+  var name = document.getElementById('blName').value.trim();
+  var machineId = document.getElementById('blMachineId').value.trim();
+  var notes = document.getElementById('blNotes').value.trim();
+  var status = document.getElementById('saveBaselineStatus');
+  if (!name) { status.textContent = 'Name is required.'; status.style.color = 'var(--red)'; return; }
+  if (!machineId) { status.textContent = 'Machine ID is required.'; status.style.color = 'var(--red)'; return; }
+  if (!W2_baseline) { status.textContent = 'No baseline recorded yet.'; status.style.color = 'var(--red)'; return; }
+  var saved = {
+    id: w3_uuid(),
+    name: name,
+    machineId: machineId,
+    notes: notes,
+    sourceFile: W3_activeLoadedFile,
+    baseline: w3_serializeBaseline(W2_baseline),
+    savedAt: new Date().toISOString(),
+  };
+  await w3_saveBaseline(saved);
+  status.textContent = 'Saved to library.';
+  status.style.color = 'var(--green)';
+  document.getElementById('blName').value = '';
+  document.getElementById('blMachineId').value = '';
+  document.getElementById('blNotes').value = '';
+  await w3_renderLibrary();
+});
+
+document.getElementById('libraryBody').addEventListener('click', async function(e) {
+  var btn = e.target.closest('button');
+  if (!btn) return;
+  var id = btn.dataset.id;
+
+  if (btn.classList.contains('w3-btn-load')) {
+    var saved = await w3_loadBaseline(id);
+    if (!saved) return;
+    W2_baseline = w3_deserializeBaseline(saved.baseline);
+    W3_activeBaselineId = id;
+    document.getElementById('baselineStatus').textContent =
+      'Loaded from library: ' + saved.name + ' | ' + saved.baseline.numFrames + ' frames | ' + saved.savedAt.slice(0,10);
+    var btnDetect = document.getElementById('btnDetect');
+    btnDetect.disabled = false;
+    btnDetect.style.background = 'var(--blue)';
+    btnDetect.style.color = '#000';
+    btnDetect.style.cursor = 'pointer';
+    await w3_renderLibrary();
+    await w3_renderLog();
+    return;
+  }
+
+  if (btn.classList.contains('w3-btn-export')) {
+    var saved2 = await w3_loadBaseline(id);
+    if (!saved2) return;
+    var json = w3_exportToJSON(saved2);
+    var blob = new Blob([json], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url; a.download = saved2.name.replace(/[^a-z0-9]/gi, '_') + '.json';
+    a.click(); URL.revokeObjectURL(url);
+    return;
+  }
+
+  if (btn.classList.contains('w3-btn-delete')) {
+    if (!confirm('Delete baseline "' + btn.dataset.name + '" and all its detection sessions?')) return;
+    if (W3_activeBaselineId === id) {
+      W3_activeBaselineId = null;
+      W2_baseline = null;
+      document.getElementById('baselineStatus').textContent = 'No baseline recorded.';
+      var btnD = document.getElementById('btnDetect');
+      btnD.disabled = true;
+      btnD.style.background = 'var(--s3)';
+      btnD.style.color = 'var(--muted)';
+      btnD.style.cursor = 'not-allowed';
+    }
+    await w3_deleteBaseline(id);
+    await w3_renderLibrary();
+    await w3_renderLog();
+    return;
+  }
+});
+
+document.getElementById('importInput').addEventListener('change', async function(e) {
+  var file = e.target.files[0]; if (!file) return;
+  var status = document.getElementById('importStatus');
+  try {
+    var text = await file.text();
+    var saved = w3_importFromJSON(text);
+    await w3_saveBaseline(saved);
+    status.textContent = 'Imported: ' + saved.name;
+    status.style.color = 'var(--green)';
+    await w3_renderLibrary();
+  } catch (err) {
+    status.textContent = 'Import failed: ' + err.message;
+    status.style.color = 'var(--red)';
+  }
+  e.target.value = '';
+});
+
+document.getElementById('btnClearLog').addEventListener('click', async function() {
+  if (!W3_activeBaselineId) return;
+  if (!confirm('Clear all detection sessions for this baseline?')) return;
+  await w3_clearSessions(W3_activeBaselineId);
+  await w3_renderLog();
+});
+
+document.getElementById('fileInput').addEventListener('change', function(e) {
+  if (e.target.files[0]) W3_activeLoadedFile = e.target.files[0].name;
+}, true);
+
+document.getElementById('btnBaseline').addEventListener('click', function() {
+  setTimeout(function() {
+    if (W2_baseline) document.getElementById('saveBaselineCard').style.display = '';
+  }, 0);
+});
+
+document.getElementById('btnDetect').addEventListener('click', async function() {
+  await new Promise(function(r) { setTimeout(r, 0); });
+  if (!W3_activeBaselineId || !W3_db) return;
+  var mAlertEl = document.getElementById('mAlert');
+  if (!mAlertEl.textContent || mAlertEl.textContent === '--') return;
+  var alertLevel = mAlertEl.textContent.toLowerCase();
+  var mDetailEl = document.getElementById('mDetail');
+  var detailParts = mDetailEl.textContent.split('|');
+  var maxAbsZ = parseFloat((detailParts[0] || '').replace('maxAbsZ =', '').trim()) || 0;
+  var numBinsAlerting = parseInt(detailParts[1]) || 0;
+  var cAlertEl = document.getElementById('cAlert');
+  var cusumAlertBins = parseInt(cAlertEl.textContent) || 0;
+  var topBins = [];
+  document.querySelectorAll('#topBinsRow .peak-chip').forEach(function(chip) {
+    var txt = chip.textContent;
+    var fMatch = txt.match(/([\d.]+)\s*Hz/);
+    var zMatch = txt.match(/z=([\d.]+)/);
+    if (fMatch && zMatch) topBins.push({ freq: parseFloat(fMatch[1]), z: parseFloat(zMatch[1]) });
+  });
+  var level = (alertLevel === 'alert' || alertLevel === 'warning' || alertLevel === 'normal')
+    ? alertLevel : 'normal';
+  var session = {
+    id: w3_uuid(),
+    baselineId: W3_activeBaselineId,
+    sourceFile: W3_activeLoadedFile,
+    alertLevel: level,
+    maxAbsZ: maxAbsZ,
+    numBinsAlerting: numBinsAlerting,
+    cusumAlertBins: cusumAlertBins,
+    topBins: topBins,
+    detectedAt: new Date().toISOString(),
+  };
+  await w3_saveSession(session);
+  await w3_renderLog();
+});
+
+// Init DB on page load
+w3_openDB().then(function(db) {
+  W3_db = db;
+  w3_renderLibrary();
+  w3_renderLog();
+}).catch(function(err) {
+  console.error('Panaural: IndexedDB unavailable:', err);
 });
 
 // ── Weekend 2: Baseline + Drift detection ────────────────────────────────────
