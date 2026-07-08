@@ -17,3 +17,7 @@ export * from './baseline/build.js';
 export * from './detector/mahalanobis.js';
 export * from './detector/cusum.js';
 export * from './calibration/reference.js';
+// Weekend 3
+export * from './persistence/serialize.js';
+export * from './persistence/db.js';
+export * from './persistence/session.js';
