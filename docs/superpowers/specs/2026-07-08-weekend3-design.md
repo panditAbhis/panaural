@@ -150,6 +150,26 @@ listSessions(db: IDBDatabase, baselineId: string): Promise<DetectionSession[]>
 deleteSession(db: IDBDatabase, id: string): Promise<void>
 ```
 
+## Educational Requirement — Top-Class Teaching Guide
+
+Every weekend build ships a teaching guide, not just code. Weekend 3 adds:
+
+**Weekend 3 Teaching Block** (new section in demo.html, before the UI panels):
+- Why persistence transforms Panaural from a one-shot tool into a longitudinal monitoring program
+- What IndexedDB is: a structured key-value store built into every browser, no server required, data survives page refresh and machine restarts
+- What a baseline library means in industrial practice: ISO 13373 recommends trending over months; a named baseline per asset per season is the minimum for serious condition monitoring
+- How to read a detection history: what "three consecutive warnings" means vs. a single alert
+
+**Guide entries G-S, G-P, G-L** — each with:
+- Concept in plain English
+- Algorithm/mechanism as pseudocode with real Panaural numbers
+- At least one strong analogy
+- What failure looks like and its industrial consequence
+
+**Inline panel text** — every column header, every number, every button explained inside the UI.
+
+Standard: a maintenance engineer who has never used Panaural should be able to read the Weekend 3 teaching block and understand what they are looking at without reading anything else.
+
 ## Demo UI Additions
 
 ### Panel 1 — Save Baseline form
